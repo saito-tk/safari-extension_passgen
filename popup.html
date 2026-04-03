@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passgen for Safari</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero-card">
+      <div class="hero-top">
+        <div>
+          <p class="eyebrow">Safari Web Extension</p>
+          <h1>Passgen</h1>
+        </div>
+        <button id="generate" class="primary-button" type="button">生成</button>
+      </div>
+      <div class="hero-stats">
+        <label class="stat">
+          <span class="stat-label">文字数</span>
+          <input id="length" class="stat-input" type="number" min="4" max="999999" value="16">
+          <span id="length-error" class="field-error" aria-live="polite"></span>
+        </label>
+        <label class="stat">
+          <span class="stat-label">件数</span>
+          <input id="count" class="stat-input" type="number" min="1" max="30" value="6">
+          <span id="count-error" class="field-error" aria-live="polite"></span>
+        </label>
+      </div>
+    </section>
+
+    <nav class="tab-bar" aria-label="表示切り替え">
+      <button id="tab-settings" class="tab-button is-active" type="button">設定</button>
+      <button id="tab-results" class="tab-button" type="button">結果</button>
+    </nav>
+
+    <section id="view-settings" class="view">
+      <div class="section">
+        <div class="section-header">
+          <h2>文字セット</h2>
+        </div>
+        <div class="choice-grid">
+          <label class="chip">
+            <input type="checkbox" id="uppercase" checked>
+            <span>英字(大文字)</span>
+          </label>
+          <label class="chip">
+            <input type="checkbox" id="lowercase" checked>
+            <span>英字(小文字)</span>
+          </label>
+          <label class="chip">
+            <input type="checkbox" id="digits" checked>
+            <span>数字</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <h2>記号</h2>
+        </div>
+        <label class="switch-row">
+          <input type="checkbox" id="include-symbols" checked>
+          <span>記号を含める</span>
+        </label>
+        <div id="symbols-panel" class="symbols-panel">
+          <div class="symbols-toolbar">
+            <label class="inline-check">
+              <input type="checkbox" id="select-all-symbols">
+              <span>すべて選択</span>
+            </label>
+          </div>
+          <div id="symbols-checkboxes" class="symbols-grid"></div>
+          <div class="symbol-import">
+            <input
+              id="symbol-import-input"
+              class="symbol-import-input"
+              type="text"
+              placeholder="記号を貼り付け"
+              autocomplete="off"
+            >
+            <button id="symbol-import-apply" class="symbol-import-button" type="button" disabled>反映</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <h2>生成ルール</h2>
+        </div>
+        <div class="rule-grid">
+          <label class="switch-row">
+            <input type="checkbox" id="exclude-similar" checked>
+            <span>似た文字を除外する</span>
+          </label>
+          <label class="switch-row">
+            <input type="checkbox" id="no-consecutive">
+            <span>同じ文字を連続させない</span>
+          </label>
+        </div>
+        <p id="settings-status" class="status-message" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section id="view-results" class="view" hidden>
+      <div class="results-head">
+        <div>
+          <h2>生成結果 <span id="progress-indicator" class="progress-indicator">(0/0)</span></h2>
+          <p class="results-copy">コピーボタンでクリップボードへ保存</p>
+        </div>
+      </div>
+      <p id="status-message" class="status-message" aria-live="polite"></p>
+      <p id="empty-state" class="empty-state" hidden>まだ結果がありません。設定を調整して生成してください。</p>
+      <ul id="password-list" class="password-list"></ul>
+    </section>
+  </main>
+
+  <template id="password-item-template">
+    <li class="password-item">
+      <div class="password-main">
+        <p class="password-value"></p>
+        <p class="password-note"></p>
+        <div class="password-meta">
+          <span class="strength-badge"></span>
+          <span class="entropy-text"></span>
+        </div>
+      </div>
+      <div class="copy-area">
+        <button class="copy-button" type="button" aria-label="コピー" title="コピー">
+          <svg class="copy-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 9.75A2.25 2.25 0 0 1 11.25 7.5h6A2.25 2.25 0 0 1 19.5 9.75v8.25a2.25 2.25 0 0 1-2.25 2.25h-6A2.25 2.25 0 0 1 9 18zm-4.5-3A2.25 2.25 0 0 1 6.75 4.5h6.75" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+            <path d="M7.5 6.75h7.5A2.25 2.25 0 0 1 17.25 9v1.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+          </svg>
+        </button>
+        <span class="copy-status" hidden>Copied!</span>
+      </div>
+    </li>
+  </template>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Passgen for Safari",
+  "version": "1.0.0",
+  "description": "Safari 向けのパスワードジェネレータ拡張です。",
+  "action": {
+    "default_title": "Passgen",
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "storage"
+  ]
+}
