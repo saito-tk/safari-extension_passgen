@@ -741,7 +741,7 @@ function appendPassword(password, elements, index) {
   passwordNote.textContent = note;
   passwordNote.hidden = note === "";
 
-  const strength = getStrengthLabel(password.entropy);
+  const strength = getStrengthLabel(password.value, password.entropy);
   strengthBadge.textContent = strength;
   entropyText.textContent = `推定 ${formatNumber(password.entropy)} bits`;
 
@@ -816,17 +816,37 @@ function formatNumber(value) {
   }).format(value);
 }
 
-function getStrengthLabel(entropy) {
-  if (entropy >= 100) {
+function getStrengthLabel(password, entropy) {
+  const uniqueCoverage = getUniqueCoverage(password);
+  let adjustedEntropy = entropy;
+
+  if (uniqueCoverage < 0.45) {
+    adjustedEntropy -= 20;
+  } else if (uniqueCoverage < 0.6) {
+    adjustedEntropy -= 10;
+  } else if (uniqueCoverage < 0.75) {
+    adjustedEntropy -= 5;
+  }
+
+  if (adjustedEntropy >= 100) {
     return "Very Strong";
   }
-  if (entropy >= 80) {
+  if (adjustedEntropy >= 80) {
     return "Strong";
   }
-  if (entropy >= 60) {
+  if (adjustedEntropy >= 60) {
     return "Good";
   }
   return "Basic";
+}
+
+function getUniqueCoverage(password) {
+  if (password.length === 0) {
+    return 0;
+  }
+
+  const uniqueCount = new Set(password).size;
+  return uniqueCount / password.length;
 }
 
 function renderStatus(element, message, tone) {
