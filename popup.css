@@ -9,6 +9,8 @@
   --accent: #2f6fe4;
   --accent-strong: #1d4fb8;
   --accent-soft: #dbe8ff;
+  --accent-rgb: 47, 111, 228;
+  --accent-strong-rgb: 29, 79, 184;
   --danger: #b54d3c;
   --shadow: 0 18px 40px rgba(20, 32, 51, 0.12);
   --disabled-bg: rgba(169, 180, 198, 0.18);
@@ -17,6 +19,78 @@
   --radius-lg: 22px;
   --radius-md: 16px;
   --radius-sm: 12px;
+}
+
+body[data-theme="green"] {
+  --bg-top: #ecf9f1;
+  --bg-bottom: #d6f0df;
+  --panel-border: rgba(63, 128, 93, 0.14);
+  --muted: #5d7d69;
+  --accent: #2c9b59;
+  --accent-strong: #1f7341;
+  --accent-soft: #daf4e3;
+  --accent-rgb: 44, 155, 89;
+  --accent-strong-rgb: 31, 115, 65;
+}
+
+body[data-theme="pink"] {
+  --bg-top: #fff0f7;
+  --bg-bottom: #ffdbe9;
+  --panel-border: rgba(166, 78, 128, 0.14);
+  --muted: #8a6077;
+  --accent: #e2539a;
+  --accent-strong: #b83776;
+  --accent-soft: #ffdcec;
+  --accent-rgb: 226, 83, 154;
+  --accent-strong-rgb: 184, 55, 118;
+}
+
+body[data-theme="red"] {
+  --bg-top: #fff0f0;
+  --bg-bottom: #ffd9d9;
+  --panel-border: rgba(163, 77, 77, 0.14);
+  --muted: #8a6464;
+  --accent: #dc4f4f;
+  --accent-strong: #b33838;
+  --accent-soft: #ffe0e0;
+  --accent-rgb: 220, 79, 79;
+  --accent-strong-rgb: 179, 56, 56;
+}
+
+body[data-theme="yellow"] {
+  --bg-top: #fffbe8;
+  --bg-bottom: #fff0bf;
+  --panel-border: rgba(168, 138, 54, 0.14);
+  --muted: #8a794b;
+  --accent: #d1a21d;
+  --accent-strong: #a87f12;
+  --accent-soft: #fff0bf;
+  --accent-rgb: 209, 162, 29;
+  --accent-strong-rgb: 168, 127, 18;
+}
+
+body[data-theme="orange"] {
+  --bg-top: #fff4ea;
+  --bg-bottom: #ffe0c4;
+  --panel-border: rgba(170, 106, 54, 0.14);
+  --muted: #8c6b51;
+  --accent: #ea7e2f;
+  --accent-strong: #bf5d19;
+  --accent-soft: #ffe4cf;
+  --accent-rgb: 234, 126, 47;
+  --accent-strong-rgb: 191, 93, 25;
+}
+
+body[data-theme="purple"] {
+  --bg-top: #f5efff;
+  --bg-bottom: #e4d8ff;
+  --panel-border: rgba(108, 83, 166, 0.14);
+  --muted: #70608d;
+  --accent: #7e57e7;
+  --accent-strong: #5e3dbd;
+  --accent-soft: #e7ddff;
+  --accent-rgb: 126, 87, 231;
+  --accent-strong-rgb: 94, 61, 189;
 }
 
 * {
@@ -187,7 +261,7 @@ h1 {
   color: #f7fbfb;
   font-size: 14px;
   font-weight: 600;
-  box-shadow: 0 10px 20px rgba(29, 79, 184, 0.22);
+  box-shadow: 0 10px 20px rgba(var(--accent-strong-rgb), 0.22);
 }
 
 .primary-button:disabled,
@@ -199,12 +273,12 @@ h1 {
 
 .primary-button:active {
   transform: translateY(1px) scale(0.98);
-  box-shadow: 0 4px 10px rgba(29, 79, 184, 0.18);
+  box-shadow: 0 4px 10px rgba(var(--accent-strong-rgb), 0.18);
 }
 
 .primary-button.is-generating {
-  background: linear-gradient(135deg, #4d83eb, #2d60c8);
-  box-shadow: 0 0 0 3px rgba(47, 111, 228, 0.16), 0 10px 24px rgba(29, 79, 184, 0.24);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.16), 0 10px 24px rgba(var(--accent-strong-rgb), 0.24);
 }
 
 .view {
@@ -264,8 +338,8 @@ h1 {
 }
 
 .chip:has(input:checked) {
-  background: rgba(47, 111, 228, 0.14);
-  border-color: rgba(47, 111, 228, 0.32);
+  background: rgba(var(--accent-rgb), 0.14);
+  border-color: rgba(var(--accent-rgb), 0.32);
 }
 
 .chip:has(input:checked) span {
@@ -316,8 +390,8 @@ h1 {
 }
 
 .symbol-import-input:focus {
-  outline: 2px solid rgba(47, 111, 228, 0.18);
-  border-color: rgba(47, 111, 228, 0.28);
+  outline: 2px solid rgba(var(--accent-rgb), 0.18);
+  border-color: rgba(var(--accent-rgb), 0.28);
 }
 
 .symbol-import-button {
@@ -372,8 +446,8 @@ h1 {
 }
 
 .symbol-chip:has(input:checked) {
-  background: linear-gradient(180deg, #2f6fe4, #1d4fb8);
-  border-color: rgba(29, 79, 184, 0.9);
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  border-color: rgba(var(--accent-strong-rgb), 0.9);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
 
@@ -398,8 +472,8 @@ h1 {
 }
 
 .switch-row:has(input:checked) {
-  background: rgba(47, 111, 228, 0.14);
-  border-color: rgba(47, 111, 228, 0.32);
+  background: rgba(var(--accent-rgb), 0.14);
+  border-color: rgba(var(--accent-rgb), 0.32);
 }
 
 .switch-row:has(input:checked) span {
@@ -434,6 +508,61 @@ input[type="checkbox"] {
 .status-message[data-tone="error"] {
   color: var(--danger);
 }
+
+.secondary-section {
+  padding-top: 2px;
+  border-top: 1px dashed rgba(123, 136, 156, 0.22);
+}
+
+.secondary-header h2,
+.theme-label,
+.section-note {
+  color: var(--muted);
+}
+
+.secondary-header h2 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.theme-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.theme-swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(67, 94, 145, 0.18);
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.theme-swatch:hover {
+  transform: translateY(-1px);
+}
+
+.theme-swatch.is-active {
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.22);
+}
+
+.theme-swatch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.theme-swatch[data-theme="blue"] { background: linear-gradient(135deg, #2f6fe4, #1d4fb8); }
+.theme-swatch[data-theme="green"] { background: linear-gradient(135deg, #2c9b59, #1f7341); }
+.theme-swatch[data-theme="pink"] { background: linear-gradient(135deg, #e2539a, #b83776); }
+.theme-swatch[data-theme="red"] { background: linear-gradient(135deg, #dc4f4f, #b33838); }
+.theme-swatch[data-theme="yellow"] { background: linear-gradient(135deg, #d1a21d, #a87f12); }
+.theme-swatch[data-theme="orange"] { background: linear-gradient(135deg, #ea7e2f, #bf5d19); }
+.theme-swatch[data-theme="purple"] { background: linear-gradient(135deg, #7e57e7, #5e3dbd); }
 
 .results-head {
   display: flex;
@@ -529,7 +658,7 @@ input[type="checkbox"] {
 }
 
 .strength-badge {
-  background: rgba(47, 111, 228, 0.12);
+  background: rgba(var(--accent-rgb), 0.12);
   color: var(--accent-strong);
   font-weight: 600;
 }
@@ -538,7 +667,8 @@ input[type="checkbox"] {
 .switch-row:has(input:disabled),
 .symbol-chip:has(input:disabled),
 .inline-check:has(input:disabled),
-.symbol-import-button:disabled {
+.symbol-import-button:disabled,
+.theme-swatch:disabled {
   background: var(--disabled-bg);
   border-color: var(--disabled-border);
   box-shadow: none;

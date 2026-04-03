@@ -41,7 +41,8 @@ const defaultSettings = {
   length: 16,
   count: 6,
   excludeSimilar: true,
-  noConsecutive: false
+  noConsecutive: false,
+  theme: "blue"
 };
 
 const similarCharacters = new Set(["I", "l", "1", "O", "0", "o"]);
@@ -79,6 +80,7 @@ function getElements() {
     symbolsCheckboxes: document.getElementById("symbols-checkboxes"),
     symbolImportInput: document.getElementById("symbol-import-input"),
     symbolImportApply: document.getElementById("symbol-import-apply"),
+    themeButtons: Array.from(document.querySelectorAll(".theme-swatch")),
     length: document.getElementById("length"),
     lengthError: document.getElementById("length-error"),
     count: document.getElementById("count"),
@@ -151,6 +153,15 @@ function wireEvents(elements) {
     });
   });
 
+  elements.themeButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      const theme = button.dataset.theme ?? defaultSettings.theme;
+      applyTheme(theme);
+      syncThemeButtons(elements.themeButtons, theme);
+      await persistSettings(elements);
+    });
+  });
+
   const numericInputs = [elements.length, elements.count];
 
   numericInputs.forEach((element) => {
@@ -219,6 +230,7 @@ function getSettingsControls(elements) {
     ...getSymbolCheckboxes(elements.symbolsCheckboxes),
     elements.symbolImportInput,
     elements.symbolImportApply,
+    ...elements.themeButtons,
     elements.length,
     elements.count,
     elements.excludeSimilar,
@@ -332,6 +344,7 @@ async function loadSettings(elements) {
   elements.count.value = String(settings.count);
   elements.excludeSimilar.checked = settings.excludeSimilar;
   elements.noConsecutive.checked = settings.noConsecutive;
+  const theme = settings.theme ?? defaultSettings.theme;
 
   const symbolCheckboxes = getSymbolCheckboxes(elements.symbolsCheckboxes);
   symbolCheckboxes.forEach((checkbox, index) => {
@@ -340,6 +353,8 @@ async function loadSettings(elements) {
 
   syncSelectAllState(elements.symbolsCheckboxes, elements.selectAllSymbols);
   normalizeNumericInputs(elements);
+  applyTheme(theme);
+  syncThemeButtons(elements.themeButtons, theme);
 }
 
 async function persistSettings(elements) {
@@ -362,7 +377,8 @@ function collectSettings(elements) {
       getMaxCountForLength(sanitizeNumber(elements.length.value, defaultSettings.length))
     ),
     excludeSimilar: elements.excludeSimilar.checked,
-    noConsecutive: elements.noConsecutive.checked
+    noConsecutive: elements.noConsecutive.checked,
+    theme: document.body.dataset.theme || defaultSettings.theme
   };
 }
 
@@ -771,6 +787,18 @@ function getPasswordNote(password) {
   }
 
   return `表示は先頭 ${formatNumber(maxVisibleLength)} 文字までです。実際の文字数は ${formatNumber(password.length)} 文字です。`;
+}
+
+function applyTheme(themeName) {
+  document.body.dataset.theme = themeName || defaultSettings.theme;
+}
+
+function syncThemeButtons(buttons, activeTheme) {
+  buttons.forEach((button) => {
+    const isActive = button.dataset.theme === activeTheme;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
 }
 
 function yieldToUi() {
