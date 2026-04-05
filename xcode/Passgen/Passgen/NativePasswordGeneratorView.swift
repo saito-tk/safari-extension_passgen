@@ -165,18 +165,20 @@ struct NativePasswordGeneratorView: View {
     }
 
     private func charsetGrid(palette: NativeThemePalette) -> some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-            settingChip(title: "英字(大文字)", selected: viewModel.settings.uppercase, palette: palette) {
+        HStack(spacing: 8) {
+            settingChip(title: "英字(大文字)", selected: viewModel.settings.uppercase, palette: palette, compact: true) {
                 viewModel.toggleUppercase()
             }
 
-            settingChip(title: "英字(小文字)", selected: viewModel.settings.lowercase, palette: palette) {
+            settingChip(title: "英字(小文字)", selected: viewModel.settings.lowercase, palette: palette, compact: true) {
                 viewModel.toggleLowercase()
             }
 
-            settingChip(title: "数字", selected: viewModel.settings.digits, palette: palette) {
+            settingChip(title: "数字", selected: viewModel.settings.digits, palette: palette, compact: true) {
                 viewModel.toggleDigits()
             }
+
+            Spacer(minLength: 0)
         }
     }
 
@@ -206,7 +208,7 @@ struct NativePasswordGeneratorView: View {
                 .disabled(viewModel.isGenerating)
             }
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 6), spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 10), spacing: 8) {
                 ForEach(Array(nativeSymbolOptions.enumerated()), id: \.offset) { index, symbol in
                     symbolButton(index: index, symbol: symbol, palette: palette)
                 }
@@ -422,12 +424,19 @@ struct NativePasswordGeneratorView: View {
         )
     }
 
-    private func settingChip(title: String, selected: Bool, palette: NativeThemePalette, fullWidth: Bool = false, action: @escaping () -> Void) -> some View {
+    private func settingChip(
+        title: String,
+        selected: Bool,
+        palette: NativeThemePalette,
+        fullWidth: Bool = false,
+        compact: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 13, weight: selected ? .semibold : .regular))
                 .foregroundStyle(selected ? palette.accentStrong : (viewModel.isGenerating ? palette.disabledText : palette.ink))
-                .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+                .frame(maxWidth: compact ? nil : .infinity, minHeight: 42, alignment: compact ? .center : .leading)
                 .padding(.horizontal, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -441,6 +450,7 @@ struct NativePasswordGeneratorView: View {
         .buttonStyle(.plain)
         .disabled(viewModel.isGenerating)
         .frame(maxWidth: fullWidth ? .infinity : nil)
+        .fixedSize(horizontal: compact, vertical: false)
     }
 
     private func sectionHeader(title: String) -> some View {
