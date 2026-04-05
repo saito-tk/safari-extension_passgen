@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		FF21B5192F80119900AACA16 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF21B5182F80119900AACA16 /* AppDelegate.swift */; };
+		A1B2C3D72F90AA0000000001 /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D62F90AA0000000001 /* AppPreferences.swift */; };
+		A1B2C3D52F90AA0000000001 /* NativePasswordGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F90AA0000000001 /* NativePasswordGeneratorView.swift */; };
+		A1B2C3D92F90AA0000000001 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D82F90AA0000000001 /* SettingsWindowController.swift */; };
 		FF21B51F2F80119900AACA16 /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = FF21B51E2F80119900AACA16 /* Icon.png */; };
 		FF21B5252F80119900AACA16 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF21B5242F80119900AACA16 /* ViewController.swift */; };
 		FF21B5282F80119900AACA16 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5262F80119900AACA16 /* Main.storyboard */; };
@@ -71,6 +74,9 @@
 		FF21B5462F80119A00AACA16 /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = ../../../manifest.json; sourceTree = "<group>"; };
 		FF21B5472F80119A00AACA16 /* popup.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = popup.css; path = ../../../popup.css; sourceTree = "<group>"; };
 		FF21B5482F80119A00AACA16 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = AGENTS.md; path = ../../../AGENTS.md; sourceTree = "<group>"; };
+		A1B2C3D42F90AA0000000001 /* NativePasswordGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativePasswordGeneratorView.swift; sourceTree = "<group>"; };
+		A1B2C3D62F90AA0000000001 /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
+		A1B2C3D82F90AA0000000001 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,6 +119,9 @@
 			isa = PBXGroup;
 			children = (
 				FF21B5182F80119900AACA16 /* AppDelegate.swift */,
+				A1B2C3D62F90AA0000000001 /* AppPreferences.swift */,
+				A1B2C3D42F90AA0000000001 /* NativePasswordGeneratorView.swift */,
+				A1B2C3D82F90AA0000000001 /* SettingsWindowController.swift */,
 				FF21B5242F80119900AACA16 /* ViewController.swift */,
 				FF21B5262F80119900AACA16 /* Main.storyboard */,
 				FF21B5292F80119A00AACA16 /* Assets.xcassets */,
@@ -274,6 +283,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D92F90AA0000000001 /* SettingsWindowController.swift in Sources */,
+				A1B2C3D72F90AA0000000001 /* AppPreferences.swift in Sources */,
+				A1B2C3D52F90AA0000000001 /* NativePasswordGeneratorView.swift in Sources */,
 				FF21B5252F80119900AACA16 /* ViewController.swift in Sources */,
 				FF21B5192F80119900AACA16 /* AppDelegate.swift in Sources */,
 			);
