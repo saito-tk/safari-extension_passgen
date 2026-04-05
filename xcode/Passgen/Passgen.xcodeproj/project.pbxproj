@@ -8,10 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		FF21B5192F80119900AACA16 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF21B5182F80119900AACA16 /* AppDelegate.swift */; };
-		FF21B51D2F80119900AACA16 /* Main.html in Resources */ = {isa = PBXBuildFile; fileRef = FF21B51B2F80119900AACA16 /* Main.html */; };
 		FF21B51F2F80119900AACA16 /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = FF21B51E2F80119900AACA16 /* Icon.png */; };
-		FF21B5212F80119900AACA16 /* Style.css in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5202F80119900AACA16 /* Style.css */; };
-		FF21B5232F80119900AACA16 /* Script.js in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5222F80119900AACA16 /* Script.js */; };
 		FF21B5252F80119900AACA16 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF21B5242F80119900AACA16 /* ViewController.swift */; };
 		FF21B5282F80119900AACA16 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5262F80119900AACA16 /* Main.storyboard */; };
 		FF21B52A2F80119A00AACA16 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5292F80119A00AACA16 /* Assets.xcassets */; };
@@ -24,6 +21,9 @@
 		FF21B54D2F80119A00AACA16 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5462F80119A00AACA16 /* manifest.json */; };
 		FF21B54E2F80119A00AACA16 /* popup.css in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5472F80119A00AACA16 /* popup.css */; };
 		FF21B54F2F80119A00AACA16 /* AGENTS.md in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5482F80119A00AACA16 /* AGENTS.md */; };
+		FF21B5502F80119A00AACA16 /* popup.js in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5432F80119A00AACA16 /* popup.js */; };
+		FF21B5512F80119A00AACA16 /* popup.html in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5442F80119A00AACA16 /* popup.html */; };
+		FF21B5522F80119A00AACA16 /* popup.css in Resources */ = {isa = PBXBuildFile; fileRef = FF21B5472F80119A00AACA16 /* popup.css */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -244,12 +244,12 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FF21B5522F80119A00AACA16 /* popup.css in Resources */,
+				FF21B5512F80119A00AACA16 /* popup.html in Resources */,
+				FF21B5502F80119A00AACA16 /* popup.js in Resources */,
 				FF21B51F2F80119900AACA16 /* Icon.png in Resources */,
 				FF21B5282F80119900AACA16 /* Main.storyboard in Resources */,
-				FF21B5232F80119900AACA16 /* Script.js in Resources */,
-				FF21B51D2F80119900AACA16 /* Main.html in Resources */,
 				FF21B52A2F80119A00AACA16 /* Assets.xcassets in Resources */,
-				FF21B5212F80119900AACA16 /* Style.css in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

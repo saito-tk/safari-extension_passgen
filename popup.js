@@ -47,6 +47,7 @@ const defaultSettings = {
 
 const similarCharacters = new Set(["I", "l", "1", "O", "0", "o"]);
 const storageArea = globalThis.browser?.storage?.local || globalThis.chrome?.storage?.local || null;
+const settingsStorageKey = "passgenSettings";
 const minPasswordLength = 4;
 const maxPasswordLength = 999999;
 const minPasswordCount = 1;
@@ -55,6 +56,7 @@ const passwordYieldInterval = 2048;
 let generationSequence = 0;
 
 document.addEventListener("DOMContentLoaded", async () => {
+  applyHostMode();
   const elements = getElements();
   renderSymbolOptions(elements.symbolsCheckboxes, elements.selectAllSymbols);
   wireEvents(elements);
@@ -65,6 +67,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   elements.emptyState.hidden = false;
   switchTab(elements, "settings");
 });
+
+function applyHostMode() {
+  const hostMode = hasExtensionRuntime() ? "extension" : "app";
+  document.documentElement.dataset.host = hostMode;
+  document.body.dataset.host = hostMode;
+}
+
+function hasExtensionRuntime() {
+  return Boolean(globalThis.browser?.runtime?.id || globalThis.chrome?.runtime?.id);
+}
 
 function getElements() {
   return {
@@ -407,20 +419,16 @@ function sanitizeNumber(value, fallback) {
 }
 
 async function readSettings() {
-  if (!storageArea) {
-    return null;
-  }
-
   if (typeof storageArea.get === "function") {
     try {
       if (storageArea.get.length <= 1) {
-        const result = await storageArea.get("passgenSettings");
-        return result.passgenSettings ?? null;
+        const result = await storageArea.get(settingsStorageKey);
+        return result[settingsStorageKey] ?? null;
       }
 
       return await new Promise((resolve) => {
-        storageArea.get("passgenSettings", (result) => {
-          resolve(result.passgenSettings ?? null);
+        storageArea.get(settingsStorageKey, (result) => {
+          resolve(result[settingsStorageKey] ?? null);
         });
       });
     } catch (error) {
@@ -428,25 +436,37 @@ async function readSettings() {
     }
   }
 
+  try {
+    const rawSettings = globalThis.localStorage?.getItem(settingsStorageKey);
+    return rawSettings ? JSON.parse(rawSettings) : null;
+  } catch (error) {
+    console.error("ローカルストレージからの設定読み込みに失敗しました。", error);
+  }
+
   return null;
 }
 
 async function writeSettings(settings) {
-  if (!storageArea || typeof storageArea.set !== "function") {
-    return;
+  if (storageArea && typeof storageArea.set === "function") {
+    try {
+      if (storageArea.set.length <= 1) {
+        await storageArea.set({ [settingsStorageKey]: settings });
+        return;
+      }
+
+      await new Promise((resolve) => {
+        storageArea.set({ [settingsStorageKey]: settings }, resolve);
+      });
+      return;
+    } catch (error) {
+      console.error("設定の保存に失敗しました。", error);
+    }
   }
 
   try {
-    if (storageArea.set.length <= 1) {
-      await storageArea.set({ passgenSettings: settings });
-      return;
-    }
-
-    await new Promise((resolve) => {
-      storageArea.set({ passgenSettings: settings }, resolve);
-    });
+    globalThis.localStorage?.setItem(settingsStorageKey, JSON.stringify(settings));
   } catch (error) {
-    console.error("設定の保存に失敗しました。", error);
+    console.error("ローカルストレージへの設定保存に失敗しました。", error);
   }
 }
 
