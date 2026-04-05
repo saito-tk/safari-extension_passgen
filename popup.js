@@ -220,6 +220,10 @@ function getSymbolCheckboxes(container) {
   return Array.from(container.querySelectorAll('input[type="checkbox"]'));
 }
 
+function hasSelectedSymbols(elements) {
+  return getSymbolCheckboxes(elements.symbolsCheckboxes).some((checkbox) => checkbox.checked);
+}
+
 function getSettingsControls(elements) {
   return [
     elements.uppercase,
@@ -492,7 +496,11 @@ function validateSettings(settings, elements) {
   clearFieldErrors(elements);
 
   if (!settings.uppercase && !settings.lowercase && !settings.digits && !settings.includeSymbols) {
-    return "少なくとも 1 つの文字セットを選択してください。";
+    return "使える文字がありません。設定を見直してください。";
+  }
+
+  if (settings.includeSymbols && !hasSelectedSymbols(elements)) {
+    return "使える文字がありません。設定を見直してください。";
   }
 
   if (settings.length < minPasswordLength || settings.length > maxPasswordLength) {
