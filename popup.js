@@ -303,22 +303,33 @@ function normalizeNumericInputs(elements, options = {}) {
   elements.count.max = String(maxCountForLength);
   elements.count.value = String(normalizedCount);
 
-  if (source === elements.length && lengthAdjusted) {
-    setFieldError(elements.length, elements.lengthError, `${minPasswordLength}〜${maxPasswordLength.toLocaleString()}に補正しました。`);
+  const shouldShowLengthWarning = lengthAdjusted && (source === elements.length || source === null);
+  const shouldShowCountWarning = countAdjusted && (source === elements.count || source === null);
+  const shouldShowDerivedCountWarning = maxCountForLength < rawCount && (source === elements.length || source === null);
+
+  if (shouldShowLengthWarning) {
+    renderStatus(
+      elements.settingsStatus,
+      `文字数に範囲外の値が入力されたため、${formatNumber(normalizedLength)} に補正しました。設定できる範囲は ${formatNumber(minPasswordLength)}〜${formatNumber(maxPasswordLength)} です。`,
+      "warning"
+    );
   }
 
-  if (source === elements.count && countAdjusted) {
-    setFieldError(elements.count, elements.countError, `1〜${maxCountForLength}に補正しました。`);
+  if (shouldShowCountWarning) {
+    renderStatus(
+      elements.settingsStatus,
+      `件数に範囲外の値が入力されたため、${formatNumber(normalizedCount)} に補正しました。現在の文字数で設定できる件数は ${formatCountRange(minPasswordCount, maxCountForLength)} です。`,
+      "warning"
+    );
     return;
   }
 
-  if (source === elements.count && rawCount > maxCountForLength) {
-    setFieldError(elements.count, elements.countError, `この文字数では最大 ${maxCountForLength} 件です。`);
-    return;
-  }
-
-  if (source === elements.length && maxCountForLength < rawCount) {
-    setFieldError(elements.count, elements.countError, `件数を ${maxCountForLength} 件に調整しました。`);
+  if (shouldShowDerivedCountWarning) {
+    renderStatus(
+      elements.settingsStatus,
+      `件数に範囲外の値が入力されたため、${formatNumber(normalizedCount)} に補正しました。現在の文字数で設定できる件数は ${formatCountRange(minPasswordCount, maxCountForLength)} です。`,
+      "warning"
+    );
   }
 }
 
@@ -453,7 +464,6 @@ async function generateAndRenderPasswords(elements, options = {}) {
   }
 
   clearFieldErrors(elements);
-  renderStatus(elements.settingsStatus, "", "info");
   renderStatus(elements.statusMessage, "", "info");
   elements.passwordList.innerHTML = "";
   elements.emptyState.hidden = true;
@@ -822,6 +832,14 @@ function formatNumber(value) {
     maximumFractionDigits: 1,
     minimumFractionDigits: Number.isInteger(value) ? 0 : 1
   }).format(value);
+}
+
+function formatCountRange(minimum, maximum) {
+  if (minimum === maximum) {
+    return `${formatNumber(minimum)} のみ`;
+  }
+
+  return `${formatNumber(minimum)}〜${formatNumber(maximum)}`;
 }
 
 function getStrengthLabel(password, entropy) {
