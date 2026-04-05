@@ -139,14 +139,6 @@ body {
   gap: 12px;
 }
 
-.eyebrow {
-  margin: 0 0 8px;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
 h1,
 h2,
 p {
@@ -525,7 +517,6 @@ input[type="checkbox"] {
 }
 
 .secondary-header h2,
-.theme-label,
 .section-note {
   color: var(--muted);
 }
