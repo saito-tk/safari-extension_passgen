@@ -51,6 +51,7 @@ const minPasswordLength = 4;
 const maxPasswordLength = 999999;
 const minPasswordCount = 1;
 const maxPasswordCount = 30;
+const passwordYieldInterval = 2048;
 let generationSequence = 0;
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -224,6 +225,13 @@ function hasSelectedSymbols(elements) {
   return getSymbolCheckboxes(elements.symbolsCheckboxes).some((checkbox) => checkbox.checked);
 }
 
+function getSelectedSymbolCharacters(elements) {
+  return getSymbolCheckboxes(elements.symbolsCheckboxes)
+    .filter((checkbox) => checkbox.checked)
+    .map((checkbox) => checkbox.value)
+    .join("");
+}
+
 function getSettingsControls(elements) {
   return [
     elements.uppercase,
@@ -308,29 +316,25 @@ function normalizeNumericInputs(elements, options = {}) {
   const shouldShowDerivedCountWarning = maxCountForLength < rawCount && (source === elements.length || source === null);
 
   if (shouldShowLengthWarning) {
-    renderStatus(
-      elements.settingsStatus,
-      `文字数に範囲外の値が入力されたため、${formatNumber(normalizedLength)} に補正しました。設定できる範囲は ${formatNumber(minPasswordLength)}〜${formatNumber(maxPasswordLength)} です。`,
-      "warning"
-    );
+    renderStatus(elements.settingsStatus, getLengthCorrectionMessage(normalizedLength), "warning");
   }
 
   if (shouldShowCountWarning) {
-    renderStatus(
-      elements.settingsStatus,
-      `件数に範囲外の値が入力されたため、${formatNumber(normalizedCount)} に補正しました。現在の文字数で設定できる件数は ${formatCountRange(minPasswordCount, maxCountForLength)} です。`,
-      "warning"
-    );
+    renderStatus(elements.settingsStatus, getCountCorrectionMessage(normalizedCount, maxCountForLength), "warning");
     return;
   }
 
   if (shouldShowDerivedCountWarning) {
-    renderStatus(
-      elements.settingsStatus,
-      `件数に範囲外の値が入力されたため、${formatNumber(normalizedCount)} に補正しました。現在の文字数で設定できる件数は ${formatCountRange(minPasswordCount, maxCountForLength)} です。`,
-      "warning"
-    );
+    renderStatus(elements.settingsStatus, getCountCorrectionMessage(normalizedCount, maxCountForLength), "warning");
   }
+}
+
+function getLengthCorrectionMessage(normalizedLength) {
+  return `文字数に範囲外の値が入力されたため、${formatNumber(normalizedLength)} に補正しました。設定できる範囲は ${formatNumber(minPasswordLength)}〜${formatNumber(maxPasswordLength)} です。`;
+}
+
+function getCountCorrectionMessage(normalizedCount, maxCountForLength) {
+  return `件数に範囲外の値が入力されたため、${formatNumber(normalizedCount)} に補正しました。現在の文字数で設定できる件数は ${formatCountRange(minPasswordCount, maxCountForLength)} です。`;
 }
 
 function clearFieldErrors(elements) {
@@ -550,40 +554,25 @@ function validateSettings(settings, elements) {
 function buildPools(settings, elements) {
   const pools = [];
 
-  if (settings.uppercase) {
-    const chars = normalizeCharacters("ABCDEFGHIJKLMNOPQRSTUVWXYZ", settings.excludeSimilar);
-    if (chars) {
-      pools.push({ id: "uppercase", label: "大文字", characters: chars });
-    }
-  }
-
-  if (settings.lowercase) {
-    const chars = normalizeCharacters("abcdefghijklmnopqrstuvwxyz", settings.excludeSimilar);
-    if (chars) {
-      pools.push({ id: "lowercase", label: "小文字", characters: chars });
-    }
-  }
-
-  if (settings.digits) {
-    const chars = normalizeCharacters("0123456789", settings.excludeSimilar);
-    if (chars) {
-      pools.push({ id: "digits", label: "数字", characters: chars });
-    }
-  }
-
-  if (settings.includeSymbols) {
-    const selectedSymbols = getSymbolCheckboxes(elements.symbolsCheckboxes)
-      .filter((checkbox) => checkbox.checked)
-      .map((checkbox) => checkbox.value)
-      .join("");
-    const chars = normalizeCharacters(selectedSymbols, false);
-
-    if (chars) {
-      pools.push({ id: "symbols", label: "記号", characters: chars });
-    }
-  }
+  appendPoolIfEnabled(pools, settings.uppercase, "uppercase", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", settings.excludeSimilar);
+  appendPoolIfEnabled(pools, settings.lowercase, "lowercase", "abcdefghijklmnopqrstuvwxyz", settings.excludeSimilar);
+  appendPoolIfEnabled(pools, settings.digits, "digits", "0123456789", settings.excludeSimilar);
+  appendPoolIfEnabled(pools, settings.includeSymbols, "symbols", getSelectedSymbolCharacters(elements), false);
 
   return pools;
+}
+
+function appendPoolIfEnabled(pools, isEnabled, id, sourceCharacters, excludeSimilar) {
+  if (!isEnabled) {
+    return;
+  }
+
+  const characters = normalizeCharacters(sourceCharacters, excludeSimilar);
+  if (!characters) {
+    return;
+  }
+
+  pools.push({ id, characters });
 }
 
 function normalizeCharacters(characters, excludeSimilar) {
@@ -601,10 +590,11 @@ function combinePools(pools) {
   return Array.from(new Set(pools.flatMap((pool) => pool.characters.split("")))).join("");
 }
 
-function createPassword(settings, elements) {
+async function createPassword(settings, elements) {
   const pools = buildPools(settings, elements);
   const requiredPoolIds = new Set(pools.map((pool) => pool.id));
   const passwordCharacters = [];
+  const combinedPoolCharacters = combinePools(pools);
   let previousChar = "";
   let iterationsSinceYield = 0;
 
@@ -628,63 +618,15 @@ function createPassword(settings, elements) {
     requiredPoolIds.delete(selectedPool.id);
     iterationsSinceYield += 1;
 
-    if (iterationsSinceYield >= 2048) {
+    if (iterationsSinceYield >= passwordYieldInterval) {
       iterationsSinceYield = 0;
-      return yieldToUi().then(() => createPasswordContinuation(
-        settings,
-        pools,
-        requiredPoolIds,
-        passwordCharacters,
-        previousChar
-      ));
+      await yieldToUi();
     }
   }
 
   return {
     value: passwordCharacters.join(""),
-    entropy: estimateEntropy(combinePools(pools).length, settings.length)
-  };
-}
-
-function createPasswordContinuation(settings, pools, requiredPoolIds, passwordCharacters, previousChar) {
-  let currentPreviousChar = previousChar;
-  let iterationsSinceYield = 0;
-
-  while (passwordCharacters.length < settings.length) {
-    const remainingSlots = settings.length - passwordCharacters.length;
-    const availablePools = selectCandidatePools(pools, requiredPoolIds, remainingSlots, settings.noConsecutive, currentPreviousChar);
-
-    if (availablePools.length === 0) {
-      throw new Error("条件に合うパスワードを生成できませんでした。");
-    }
-
-    const selectedPool = availablePools[randomInt(availablePools.length)];
-    const character = pickCharacter(selectedPool.characters, currentPreviousChar, settings.noConsecutive);
-
-    if (!character) {
-      throw new Error("利用可能な文字が不足しています。");
-    }
-
-    passwordCharacters.push(character);
-    currentPreviousChar = character;
-    requiredPoolIds.delete(selectedPool.id);
-    iterationsSinceYield += 1;
-
-    if (iterationsSinceYield >= 2048) {
-      iterationsSinceYield = 0;
-      return yieldToUi().then(() => createPasswordContinuation(
-        settings,
-        pools,
-        requiredPoolIds,
-        passwordCharacters,
-        currentPreviousChar
-      ));
-    }
-  }
-
-  return {
-    value: passwordCharacters.join(""),
-    entropy: estimateEntropy(combinePools(pools).length, settings.length)
+    entropy: estimateEntropy(combinedPoolCharacters.length, settings.length)
   };
 }
 
