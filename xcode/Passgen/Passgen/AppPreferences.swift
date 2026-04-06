@@ -28,7 +28,7 @@ enum AppPresentationMode: Int {
         case .web:
             NSSize(width: 452, height: 760)
         case .swift:
-            NSSize(width: 1180, height: 820)
+            NSSize(width: 1380, height: 840)
         }
     }
 }

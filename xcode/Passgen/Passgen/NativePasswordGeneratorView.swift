@@ -54,6 +54,7 @@ private let nativePasswordYieldInterval = 2_048
 struct NativePasswordGeneratorView: View {
     @StateObject var viewModel: NativePasswordGeneratorViewModel
     @FocusState private var focusedField: NativeFocusedField?
+    @State private var isSavedSettingsSidebarVisible = true
 
     init(viewModel: NativePasswordGeneratorViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -67,41 +68,189 @@ struct NativePasswordGeneratorView: View {
                 .ignoresSafeArea()
 
             GeometryReader { proxy in
-                let outerPadding: CGFloat = 18
-                let horizontalSpacing: CGFloat = 16
-                let availableWidth = max(proxy.size.width - (outerPadding * 2) - horizontalSpacing, 0)
-                let minimumSettingsWidth: CGFloat = 420
-                let minimumResultsWidth: CGFloat = 320
-                let proposedSettingsWidth = availableWidth * 0.58
-                let settingsWidth = min(
-                    max(proposedSettingsWidth, minimumSettingsWidth),
-                    max(availableWidth - minimumResultsWidth, minimumSettingsWidth)
-                )
-                let resultsWidth = max(availableWidth - settingsWidth, minimumResultsWidth)
+                let layout = NativeSwiftLayoutMetrics(containerSize: proxy.size, isSidebarVisible: isSavedSettingsSidebarVisible)
 
-                HStack(alignment: .top, spacing: horizontalSpacing) {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
-                            heroCard(palette: palette)
-                            settingsCard(palette: palette)
-                            rulesCard(palette: palette)
-                            themeCard(palette: palette)
-                        }
+                HStack(alignment: .top, spacing: layout.columnSpacing) {
+                    if isSavedSettingsSidebarVisible {
+                        savedSettingsColumn(palette: palette)
+                            .frame(width: layout.sidebarWidth)
+                            .transition(.move(edge: .leading).combined(with: .opacity))
                     }
-                    .frame(width: settingsWidth)
-                    .scrollIndicators(.visible)
 
-                    resultsCard(palette: palette)
-                        .frame(width: resultsWidth)
+                    centerColumn(palette: palette)
+                        .frame(width: layout.centerWidth)
+
+                    rightColumn(palette: palette)
+                        .frame(width: layout.rightWidth)
                         .frame(maxHeight: .infinity)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(outerPadding)
+                .padding(layout.outerPadding)
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: isSavedSettingsSidebarVisible)
         .onChange(of: focusedField) { previousField, nextField in
             viewModel.handleFocusChange(from: previousField, to: nextField)
         }
+    }
+
+    private func savedSettingsColumn(palette: NativeThemePalette) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                savedSettingsCard(palette: palette)
+            }
+        }
+        .scrollIndicators(.visible)
+    }
+
+    private func centerColumn(palette: NativeThemePalette) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                sidebarToggleRow(palette: palette)
+                heroCard(palette: palette)
+                settingsCard(palette: palette)
+                rulesCard(palette: palette)
+                themeCard(palette: palette)
+            }
+        }
+        .scrollIndicators(.visible)
+    }
+
+    private func rightColumn(palette: NativeThemePalette) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            analysisCard(palette: palette)
+            resultsCard(palette: palette)
+        }
+    }
+
+    private func sidebarToggleRow(palette: NativeThemePalette) -> some View {
+        HStack {
+            Button {
+                isSavedSettingsSidebarVisible.toggle()
+            } label: {
+                Label(
+                    isSavedSettingsSidebarVisible ? "保存済み設定を隠す" : "保存済み設定を表示",
+                    systemImage: isSavedSettingsSidebarVisible ? "sidebar.leading" : "sidebar.left"
+                )
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(palette.accentStrong)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.74))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(palette.panelBorder, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func savedSettingsCard(palette: NativeThemePalette) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("保存済み設定")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(palette.ink)
+
+                Spacer(minLength: 0)
+
+                Text("一覧")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.7))
+                    )
+            }
+
+            Text("ここに保存した設定が並びます。保存機能を追加するまでは、空の一覧として表示されます。")
+                .font(.system(size: 12))
+                .foregroundStyle(palette.muted)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("まだ保存済み設定はありません。")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(palette.ink)
+
+                Text("設定名を付けて保存した項目を、ここから呼び出したり整理したりできる構成にします。")
+                    .font(.system(size: 12))
+                    .foregroundStyle(palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white.opacity(0.78))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(palette.panelBorder, lineWidth: 1)
+            )
+        }
+        .padding(16)
+        .nativeCardStyle(palette: palette)
+    }
+
+    private func analysisCard(palette: NativeThemePalette) -> some View {
+        let latestResult = viewModel.results.last
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("強度サマリー")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(palette.ink)
+
+                Spacer(minLength: 0)
+
+                Text(latestResult == nil ? "未生成" : "最新の結果")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.7))
+                    )
+            }
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
+                analysisMetricCard(
+                    title: "強度評価",
+                    value: latestResult?.strengthLabel ?? "未生成",
+                    detail: latestResult.map { "推定 \(formatNumber($0.entropy)) bits" } ?? "生成後に表示されます",
+                    palette: palette
+                )
+                analysisMetricCard(
+                    title: "点数",
+                    value: "—",
+                    detail: "Task 2 で追加予定",
+                    palette: palette
+                )
+                analysisMetricCard(
+                    title: "警告",
+                    value: latestResult == nil ? "—" : "なし",
+                    detail: "詳細な検出は次の段階で追加します",
+                    palette: palette
+                )
+                analysisMetricCard(
+                    title: "偏り・ユニーク率",
+                    value: "—",
+                    detail: "生成後に見やすく表示します",
+                    palette: palette
+                )
+            }
+        }
+        .padding(16)
+        .nativeCardStyle(palette: palette)
     }
 
     private func heroCard(palette: NativeThemePalette) -> some View {
@@ -456,6 +605,59 @@ struct NativePasswordGeneratorView: View {
     private func sectionHeader(title: String) -> some View {
         Text(title)
             .font(.system(size: 15, weight: .semibold))
+    }
+
+    private func analysisMetricCard(title: String, value: String, detail: String, palette: NativeThemePalette) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(palette.muted)
+
+            Text(value)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(palette.ink)
+
+            Text(detail)
+                .font(.system(size: 11))
+                .foregroundStyle(palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.8))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(palette.panelBorder, lineWidth: 1)
+        )
+    }
+}
+
+private struct NativeSwiftLayoutMetrics {
+    let outerPadding: CGFloat = 18
+    let columnSpacing: CGFloat = 16
+    let sidebarWidth: CGFloat
+    let centerWidth: CGFloat
+    let rightWidth: CGFloat
+
+    init(containerSize: CGSize, isSidebarVisible: Bool) {
+        let visibleSpacingCount: CGFloat = isSidebarVisible ? 2 : 1
+        let baseSidebarWidth = min(max(containerSize.width * 0.18, 244), 280)
+        let resolvedSidebarWidth = isSidebarVisible ? baseSidebarWidth : 0
+        let usableWidth = max(containerSize.width - (outerPadding * 2) - (columnSpacing * visibleSpacingCount) - resolvedSidebarWidth, 0)
+        let proposedCenterWidth = usableWidth * 0.57
+        let minimumCenterWidth: CGFloat = 520
+        let minimumRightWidth: CGFloat = 360
+        let resolvedCenterWidth = min(
+            max(proposedCenterWidth, minimumCenterWidth),
+            max(usableWidth - minimumRightWidth, minimumCenterWidth)
+        )
+
+        sidebarWidth = resolvedSidebarWidth
+        centerWidth = resolvedCenterWidth
+        rightWidth = max(usableWidth - resolvedCenterWidth, minimumRightWidth)
     }
 }
 
