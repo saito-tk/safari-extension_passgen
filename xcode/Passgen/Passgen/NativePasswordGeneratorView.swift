@@ -50,11 +50,15 @@ private let nativeMaxPasswordLength = 999_999
 private let nativeMinPasswordCount = 1
 private let nativeMaxPasswordCount = 30
 private let nativePasswordYieldInterval = 2_048
+private let uppercaseCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+private let lowercaseCharacters = "abcdefghijklmnopqrstuvwxyz"
+private let digitCharacters = "0123456789"
 
 struct NativePasswordGeneratorView: View {
     @StateObject var viewModel: NativePasswordGeneratorViewModel
     @FocusState private var focusedField: NativeFocusedField?
     @State private var isSavedSettingsSidebarVisible = true
+    @State private var activeCharacterTab: NativeCharacterTab = .uppercase
 
     init(viewModel: NativePasswordGeneratorViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -251,57 +255,89 @@ struct NativePasswordGeneratorView: View {
 
     private func settingsCard(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader(title: "文字セット")
-            charsetGrid(palette: palette)
-            symbolSection(palette: palette)
+            sectionHeader(title: "文字選択エディタ")
+
+            characterTabBar(palette: palette)
+            activeCharacterPanel(palette: palette)
+
+            selectedCharactersSummary(palette: palette)
         }
         .padding(16)
         .nativeCardStyle(palette: palette)
     }
 
-    private func charsetGrid(palette: NativeThemePalette) -> some View {
-        HStack(spacing: 8) {
-            settingChip(title: "英字(大文字)", selected: viewModel.settings.uppercase, palette: palette, compact: true) {
-                viewModel.toggleUppercase()
-            }
+    private func selectedCharactersSummary(palette: NativeThemePalette) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("現在選択中の文字")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(palette.muted)
 
-            settingChip(title: "英字(小文字)", selected: viewModel.settings.lowercase, palette: palette, compact: true) {
-                viewModel.toggleLowercase()
+            VStack(alignment: .leading, spacing: 7) {
+                selectedCharactersRow(title: "大文字", characters: uppercaseCharacters, selectedCharacters: selectedCharacterSet(for: .uppercase), palette: palette)
+                selectedCharactersRow(title: "小文字", characters: lowercaseCharacters, selectedCharacters: selectedCharacterSet(for: .lowercase), palette: palette)
+                selectedCharactersRow(title: "数字", characters: digitCharacters, selectedCharacters: selectedCharacterSet(for: .digits), palette: palette)
+                selectedCharactersRow(title: "記号", characters: nativeSymbolOptions.map(\.value).joined(), selectedCharacters: selectedCharacterSet(for: .symbols), palette: palette)
             }
-
-            settingChip(title: "数字", selected: viewModel.settings.digits, palette: palette, compact: true) {
-                viewModel.toggleDigits()
-            }
-
-            Spacer(minLength: 0)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white.opacity(0.72))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(palette.panelBorder, lineWidth: 1)
+            )
         }
     }
 
-    private func symbolSection(palette: NativeThemePalette) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            settingChip(title: "記号", selected: viewModel.settings.includeSymbols, palette: palette, fullWidth: true) {
-                viewModel.toggleIncludeSymbols()
-            }
+    private func selectedCharacterSet(for tab: NativeCharacterTab) -> Set<String> {
+        return Set(viewModel.selectedCharacters(for: tab))
+    }
 
-            if viewModel.settings.includeSymbols {
-                symbolPanel(palette: palette)
+    private func characterTabBar(palette: NativeThemePalette) -> some View {
+        HStack(spacing: 8) {
+            ForEach(NativeCharacterTab.allCases) { tab in
+                let isSelected = activeCharacterTab == tab
+
+                Button {
+                    activeCharacterTab = tab
+                } label: {
+                    Text(tab.title)
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                        .foregroundStyle(isSelected ? palette.accentStrong : palette.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(isSelected ? palette.accent.opacity(0.14) : Color.white.opacity(0.82))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(isSelected ? palette.accent.opacity(0.34) : palette.panelBorder, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func activeCharacterPanel(palette: NativeThemePalette) -> some View {
+        switch activeCharacterTab {
+        case .uppercase:
+            characterSelectionPanel(tab: .uppercase, title: "英字(大文字)", characters: uppercaseCharacters, palette: palette)
+        case .lowercase:
+            characterSelectionPanel(tab: .lowercase, title: "英字(小文字)", characters: lowercaseCharacters, palette: palette)
+        case .digits:
+            characterSelectionPanel(tab: .digits, title: "数字", characters: digitCharacters, palette: palette)
+        case .symbols:
+            symbolPanel(palette: palette)
         }
     }
 
     private func symbolPanel(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Spacer(minLength: 0)
-
-                Button(viewModel.settings.selectAllSymbols ? "すべて解除" : "すべて選択") {
-                    viewModel.setAllSymbols(selected: !viewModel.settings.selectAllSymbols)
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
-                .disabled(viewModel.isGenerating)
-            }
+            selectionActionRow(tab: .symbols, title: "記号", palette: palette)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 10), spacing: 8) {
                 ForEach(Array(nativeSymbolOptions.enumerated()), id: \.offset) { index, symbol in
@@ -311,7 +347,9 @@ struct NativePasswordGeneratorView: View {
 
             symbolImportRow(palette: palette)
         }
-        .padding(12)
+        .padding(.horizontal, 12)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.white.opacity(0.72))
@@ -383,6 +421,109 @@ struct NativePasswordGeneratorView: View {
             )
             .opacity(viewModel.canApplyImportedSymbols ? 1 : 0.72)
             .disabled(!viewModel.canApplyImportedSymbols)
+        }
+    }
+
+    private func characterSelectionPanel(
+        tab: NativeCharacterTab,
+        title: String,
+        characters: String,
+        palette: NativeThemePalette
+    ) -> some View {
+        let selectedCharacters = Set(viewModel.selectedCharacters(for: tab))
+
+        return VStack(alignment: .leading, spacing: 10) {
+            selectionActionRow(tab: tab, title: title, palette: palette)
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 10), spacing: 8) {
+                ForEach(Array(characters.map(String.init).enumerated()), id: \.offset) { index, character in
+                    characterSelectionButton(
+                        tab: tab,
+                        index: index,
+                        character: character,
+                        isSelected: selectedCharacters.contains(character),
+                        palette: palette
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.72))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(palette.panelBorder, lineWidth: 1)
+        )
+    }
+
+    private func selectionActionRow(tab: NativeCharacterTab, title: String, palette: NativeThemePalette) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(palette.ink)
+
+            Spacer(minLength: 0)
+
+            Button(viewModel.isAllCharactersSelected(for: tab) ? "すべて解除" : "すべて選択") {
+                viewModel.setAllCharacters(in: tab, selected: !viewModel.isAllCharactersSelected(for: tab))
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
+            .disabled(viewModel.isGenerating)
+        }
+    }
+
+    private func characterSelectionButton(
+        tab: NativeCharacterTab,
+        index: Int,
+        character: String,
+        isSelected: Bool,
+        palette: NativeThemePalette
+    ) -> some View {
+        let foregroundColor = isSelected ? Color.white : (viewModel.isGenerating ? palette.disabledText : palette.muted)
+        let backgroundView: AnyShapeStyle = isSelected
+            ? AnyShapeStyle(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .top, endPoint: .bottom))
+            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : Color.white.opacity(0.95))
+        let borderColor = isSelected ? palette.accentStrong.opacity(0.92) : palette.panelBorder
+
+        return Button {
+            viewModel.toggleCharacter(in: tab, at: index)
+        } label: {
+            Text(character)
+                .font(.system(size: 15, weight: isSelected ? .bold : .regular, design: .monospaced))
+                .frame(maxWidth: .infinity, minHeight: 40)
+                .foregroundStyle(foregroundColor)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(backgroundView)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(borderColor, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isGenerating)
+    }
+
+    private func selectedCharactersRow(title: String, characters: String, selectedCharacters: Set<String>, palette: NativeThemePalette) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(palette.muted)
+                .frame(width: 36, alignment: .leading)
+
+            FlowCharacterText(
+                characters: characters.map(String.init),
+                selectedCharacters: selectedCharacters,
+                selectedColor: palette.ink,
+                unselectedColor: palette.muted.opacity(0.42)
+            )
         }
     }
 
@@ -603,6 +744,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         settings = restoredSettings
         lengthText = String(restoredSettings.length)
         countText = String(restoredSettings.count)
+        syncCategorySelectionFlags()
         syncSelectAllState()
         isRestoringSettings = false
     }
@@ -623,6 +765,36 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         "(\(progressCompleted)/\(progressTotal))"
     }
 
+    func selectedCharacters(for tab: NativeCharacterTab) -> [String] {
+        switch tab {
+        case .uppercase:
+            return Self.selectedCharacters(from: uppercaseCharacters, selections: settings.uppercaseSelections)
+        case .lowercase:
+            return Self.selectedCharacters(from: lowercaseCharacters, selections: settings.lowercaseSelections)
+        case .digits:
+            return Self.selectedCharacters(from: digitCharacters, selections: settings.digitSelections)
+        case .symbols:
+            return Self.selectedCharacters(from: nativeSymbolOptions.map(\.value).joined(), selections: settings.symbols)
+        }
+    }
+
+    func isAllCharactersSelected(for tab: NativeCharacterTab) -> Bool {
+        let selections: [Bool]
+
+        switch tab {
+        case .uppercase:
+            selections = settings.uppercaseSelections
+        case .lowercase:
+            selections = settings.lowercaseSelections
+        case .digits:
+            selections = settings.digitSelections
+        case .symbols:
+            selections = settings.symbols
+        }
+
+        return selections.contains(true) && selections.allSatisfy(\.self)
+    }
+
     func handleFocusChange(from previousField: NativeFocusedField?, to nextField: NativeFocusedField?) {
         guard previousField != nextField else {
             return
@@ -636,26 +808,6 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         case .symbolImport, .none:
             break
         }
-    }
-
-    func toggleUppercase() {
-        settings.uppercase.toggle()
-        persistSettings()
-    }
-
-    func toggleLowercase() {
-        settings.lowercase.toggle()
-        persistSettings()
-    }
-
-    func toggleDigits() {
-        settings.digits.toggle()
-        persistSettings()
-    }
-
-    func toggleIncludeSymbols() {
-        settings.includeSymbols.toggle()
-        persistSettings()
     }
 
     func toggleExcludeSimilar() {
@@ -673,6 +825,43 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         persistSettings()
     }
 
+    func setAllCharacters(in tab: NativeCharacterTab, selected: Bool) {
+        switch tab {
+        case .uppercase:
+            settings.uppercaseSelections = Array(repeating: selected, count: uppercaseCharacters.count)
+        case .lowercase:
+            settings.lowercaseSelections = Array(repeating: selected, count: lowercaseCharacters.count)
+        case .digits:
+            settings.digitSelections = Array(repeating: selected, count: digitCharacters.count)
+        case .symbols:
+            settings.symbols = Array(repeating: selected, count: nativeSymbolOptions.count)
+            syncSelectAllState()
+        }
+
+        syncCategorySelectionFlags()
+        persistSettings()
+    }
+
+    func toggleCharacter(in tab: NativeCharacterTab, at index: Int) {
+        switch tab {
+        case .uppercase:
+            guard settings.uppercaseSelections.indices.contains(index) else { return }
+            settings.uppercaseSelections[index].toggle()
+        case .lowercase:
+            guard settings.lowercaseSelections.indices.contains(index) else { return }
+            settings.lowercaseSelections[index].toggle()
+        case .digits:
+            guard settings.digitSelections.indices.contains(index) else { return }
+            settings.digitSelections[index].toggle()
+        case .symbols:
+            toggleSymbol(at: index)
+            return
+        }
+
+        syncCategorySelectionFlags()
+        persistSettings()
+    }
+
     func toggleSymbol(at index: Int) {
         guard settings.symbols.indices.contains(index) else {
             return
@@ -680,12 +869,14 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
         settings.symbols[index].toggle()
         syncSelectAllState()
+        syncCategorySelectionFlags()
         persistSettings()
     }
 
     func setAllSymbols(selected: Bool) {
         settings.symbols = Array(repeating: selected, count: nativeSymbolOptions.count)
         syncSelectAllState()
+        syncCategorySelectionFlags()
         persistSettings()
     }
 
@@ -705,6 +896,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
         settings.symbols = nativeSymbolOptions.map { importedCharacters.contains($0.value) }
         syncSelectAllState()
+        syncCategorySelectionFlags()
         persistSettings()
         symbolImportText = ""
     }
@@ -827,6 +1019,13 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         settings.selectAllSymbols = settings.symbols.contains(true) && settings.symbols.allSatisfy(\.self)
     }
 
+    private func syncCategorySelectionFlags() {
+        settings.uppercase = settings.uppercaseSelections.contains(true)
+        settings.lowercase = settings.lowercaseSelections.contains(true)
+        settings.digits = settings.digitSelections.contains(true)
+        settings.includeSymbols = settings.symbols.contains(true)
+    }
+
     private func persistSettings() {
         guard !isRestoringSettings else {
             return
@@ -852,6 +1051,18 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
         if normalizedSettings.symbols.count != nativeSymbolOptions.count {
             normalizedSettings.symbols = Array(repeating: true, count: nativeSymbolOptions.count)
+        }
+
+        if normalizedSettings.uppercaseSelections.count != uppercaseCharacters.count {
+            normalizedSettings.uppercaseSelections = Array(repeating: true, count: uppercaseCharacters.count)
+        }
+
+        if normalizedSettings.lowercaseSelections.count != lowercaseCharacters.count {
+            normalizedSettings.lowercaseSelections = Array(repeating: true, count: lowercaseCharacters.count)
+        }
+
+        if normalizedSettings.digitSelections.count != digitCharacters.count {
+            normalizedSettings.digitSelections = Array(repeating: true, count: digitCharacters.count)
         }
 
         normalizedSettings.selectAllSymbols = normalizedSettings.symbols.contains(true) && normalizedSettings.symbols.allSatisfy(\.self)
@@ -927,9 +1138,9 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     private static func buildPools(using settings: NativePasswordSettings) -> [NativeCharacterPool] {
         var pools: [NativeCharacterPool] = []
 
-        appendPoolIfNeeded(&pools, isEnabled: settings.uppercase, id: "uppercase", sourceCharacters: "ABCDEFGHIJKLMNOPQRSTUVWXYZ", excludeSimilar: settings.excludeSimilar)
-        appendPoolIfNeeded(&pools, isEnabled: settings.lowercase, id: "lowercase", sourceCharacters: "abcdefghijklmnopqrstuvwxyz", excludeSimilar: settings.excludeSimilar)
-        appendPoolIfNeeded(&pools, isEnabled: settings.digits, id: "digits", sourceCharacters: "0123456789", excludeSimilar: settings.excludeSimilar)
+        appendPoolIfNeeded(&pools, isEnabled: settings.uppercase, id: "uppercase", sourceCharacters: selectedCharacters(from: uppercaseCharacters, selections: settings.uppercaseSelections).joined(), excludeSimilar: settings.excludeSimilar)
+        appendPoolIfNeeded(&pools, isEnabled: settings.lowercase, id: "lowercase", sourceCharacters: selectedCharacters(from: lowercaseCharacters, selections: settings.lowercaseSelections).joined(), excludeSimilar: settings.excludeSimilar)
+        appendPoolIfNeeded(&pools, isEnabled: settings.digits, id: "digits", sourceCharacters: selectedCharacters(from: digitCharacters, selections: settings.digitSelections).joined(), excludeSimilar: settings.excludeSimilar)
         appendPoolIfNeeded(&pools, isEnabled: settings.includeSymbols, id: "symbols", sourceCharacters: selectedSymbolCharacters(from: settings), excludeSimilar: false)
 
         return pools
@@ -966,6 +1177,12 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                 isSelected ? option.value : nil
             }
             .joined()
+    }
+
+    private static func selectedCharacters(from source: String, selections: [Bool]) -> [String] {
+        zip(source.map(String.init), selections).compactMap { character, isSelected in
+            isSelected ? character : nil
+        }
     }
 
     private static func combinePools(_ pools: [NativeCharacterPool]) -> [String] {
@@ -1048,6 +1265,9 @@ struct NativePasswordSettings: Codable {
     var lowercase: Bool
     var digits: Bool
     var includeSymbols: Bool
+    var uppercaseSelections: [Bool]
+    var lowercaseSelections: [Bool]
+    var digitSelections: [Bool]
     var selectAllSymbols: Bool
     var symbols: [Bool]
     var length: Int
@@ -1061,6 +1281,9 @@ struct NativePasswordSettings: Codable {
         lowercase: true,
         digits: true,
         includeSymbols: true,
+        uppercaseSelections: Array(repeating: true, count: uppercaseCharacters.count),
+        lowercaseSelections: Array(repeating: true, count: lowercaseCharacters.count),
+        digitSelections: Array(repeating: true, count: digitCharacters.count),
         selectAllSymbols: false,
         symbols: Array(repeating: true, count: nativeSymbolOptions.count),
         length: 16,
@@ -1069,6 +1292,92 @@ struct NativePasswordSettings: Codable {
         noConsecutive: false,
         theme: .blue
     )
+
+    enum CodingKeys: String, CodingKey {
+        case uppercase
+        case lowercase
+        case digits
+        case includeSymbols
+        case uppercaseSelections
+        case lowercaseSelections
+        case digitSelections
+        case selectAllSymbols
+        case symbols
+        case length
+        case count
+        case excludeSimilar
+        case noConsecutive
+        case theme
+    }
+
+    init(
+        uppercase: Bool,
+        lowercase: Bool,
+        digits: Bool,
+        includeSymbols: Bool,
+        uppercaseSelections: [Bool],
+        lowercaseSelections: [Bool],
+        digitSelections: [Bool],
+        selectAllSymbols: Bool,
+        symbols: [Bool],
+        length: Int,
+        count: Int,
+        excludeSimilar: Bool,
+        noConsecutive: Bool,
+        theme: NativeTheme
+    ) {
+        self.uppercase = uppercase
+        self.lowercase = lowercase
+        self.digits = digits
+        self.includeSymbols = includeSymbols
+        self.uppercaseSelections = uppercaseSelections
+        self.lowercaseSelections = lowercaseSelections
+        self.digitSelections = digitSelections
+        self.selectAllSymbols = selectAllSymbols
+        self.symbols = symbols
+        self.length = length
+        self.count = count
+        self.excludeSimilar = excludeSimilar
+        self.noConsecutive = noConsecutive
+        self.theme = theme
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        uppercase = try container.decodeIfPresent(Bool.self, forKey: .uppercase) ?? Self.defaultSettings.uppercase
+        lowercase = try container.decodeIfPresent(Bool.self, forKey: .lowercase) ?? Self.defaultSettings.lowercase
+        digits = try container.decodeIfPresent(Bool.self, forKey: .digits) ?? Self.defaultSettings.digits
+        includeSymbols = try container.decodeIfPresent(Bool.self, forKey: .includeSymbols) ?? Self.defaultSettings.includeSymbols
+        uppercaseSelections = try container.decodeIfPresent([Bool].self, forKey: .uppercaseSelections) ?? Self.defaultSettings.uppercaseSelections
+        lowercaseSelections = try container.decodeIfPresent([Bool].self, forKey: .lowercaseSelections) ?? Self.defaultSettings.lowercaseSelections
+        digitSelections = try container.decodeIfPresent([Bool].self, forKey: .digitSelections) ?? Self.defaultSettings.digitSelections
+        selectAllSymbols = try container.decodeIfPresent(Bool.self, forKey: .selectAllSymbols) ?? Self.defaultSettings.selectAllSymbols
+        symbols = try container.decodeIfPresent([Bool].self, forKey: .symbols) ?? Self.defaultSettings.symbols
+        length = try container.decodeIfPresent(Int.self, forKey: .length) ?? Self.defaultSettings.length
+        count = try container.decodeIfPresent(Int.self, forKey: .count) ?? Self.defaultSettings.count
+        excludeSimilar = try container.decodeIfPresent(Bool.self, forKey: .excludeSimilar) ?? Self.defaultSettings.excludeSimilar
+        noConsecutive = try container.decodeIfPresent(Bool.self, forKey: .noConsecutive) ?? Self.defaultSettings.noConsecutive
+        theme = try container.decodeIfPresent(NativeTheme.self, forKey: .theme) ?? Self.defaultSettings.theme
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(uppercase, forKey: .uppercase)
+        try container.encode(lowercase, forKey: .lowercase)
+        try container.encode(digits, forKey: .digits)
+        try container.encode(includeSymbols, forKey: .includeSymbols)
+        try container.encode(uppercaseSelections, forKey: .uppercaseSelections)
+        try container.encode(lowercaseSelections, forKey: .lowercaseSelections)
+        try container.encode(digitSelections, forKey: .digitSelections)
+        try container.encode(selectAllSymbols, forKey: .selectAllSymbols)
+        try container.encode(symbols, forKey: .symbols)
+        try container.encode(length, forKey: .length)
+        try container.encode(count, forKey: .count)
+        try container.encode(excludeSimilar, forKey: .excludeSimilar)
+        try container.encode(noConsecutive, forKey: .noConsecutive)
+        try container.encode(theme, forKey: .theme)
+    }
 }
 
 struct NativeGeneratedPassword: Identifiable {
@@ -1234,6 +1543,40 @@ private struct NativePasswordRow: View {
     }
 }
 
+private struct FlowCharacterText: View {
+    let characters: [String]
+    let selectedCharacters: Set<String>
+    let selectedColor: Color
+    let unselectedColor: Color
+
+    var body: some View {
+        Text(attributedCharacters)
+            .font(.system(size: 12, design: .monospaced))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var attributedCharacters: AttributedString {
+        var result = AttributedString()
+
+        for (index, character) in characters.enumerated() {
+            let isSelected = selectedCharacters.contains(character)
+            var segment = AttributedString(character)
+            segment.font = .system(size: 12, weight: isSelected ? .bold : .regular, design: .monospaced)
+            segment.foregroundColor = isSelected ? selectedColor : unselectedColor
+            result.append(segment)
+
+            if index != characters.count - 1 {
+                var spacer = AttributedString(" ")
+                spacer.font = .system(size: 12, design: .monospaced)
+                spacer.foregroundColor = unselectedColor
+                result.append(spacer)
+            }
+        }
+
+        return result
+    }
+}
+
 private struct StatusMessageView: View {
     let status: NativeInlineStatus
     let palette: NativeThemePalette
@@ -1299,6 +1642,29 @@ enum NativeStatusTone {
     case info
     case warning
     case error
+}
+
+enum NativeCharacterTab: String, CaseIterable, Identifiable {
+    case uppercase
+    case lowercase
+    case digits
+    case symbols
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .uppercase:
+            return "大文字"
+        case .lowercase:
+            return "小文字"
+        case .digits:
+            return "数字"
+        case .symbols:
+            return "記号"
+        }
+    }
+
 }
 
 enum NativeTheme: String, CaseIterable, Codable, Identifiable {
