@@ -118,7 +118,6 @@ struct NativePasswordGeneratorView: View {
 
     private func rightColumn(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            analysisCard(palette: palette)
             resultsCard(palette: palette)
         }
     }
@@ -195,59 +194,6 @@ struct NativePasswordGeneratorView: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(palette.panelBorder, lineWidth: 1)
             )
-        }
-        .padding(16)
-        .nativeCardStyle(palette: palette)
-    }
-
-    private func analysisCard(palette: NativeThemePalette) -> some View {
-        let latestResult = viewModel.results.last
-
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("強度サマリー")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(palette.ink)
-
-                Spacer(minLength: 0)
-
-                Text(latestResult == nil ? "未生成" : "最新の結果")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(palette.muted)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.7))
-                    )
-            }
-
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
-                analysisMetricCard(
-                    title: "強度評価",
-                    value: latestResult?.strengthLabel ?? "未生成",
-                    detail: latestResult.map { "推定 \(formatNumber($0.entropy)) bits" } ?? "生成後に表示されます",
-                    palette: palette
-                )
-                analysisMetricCard(
-                    title: "点数",
-                    value: "—",
-                    detail: "Task 2 で追加予定",
-                    palette: palette
-                )
-                analysisMetricCard(
-                    title: "警告",
-                    value: latestResult == nil ? "—" : "なし",
-                    detail: "詳細な検出は次の段階で追加します",
-                    palette: palette
-                )
-                analysisMetricCard(
-                    title: "偏り・ユニーク率",
-                    value: "—",
-                    detail: "生成後に見やすく表示します",
-                    palette: palette
-                )
-            }
         }
         .padding(16)
         .nativeCardStyle(palette: palette)
@@ -607,32 +553,6 @@ struct NativePasswordGeneratorView: View {
             .font(.system(size: 15, weight: .semibold))
     }
 
-    private func analysisMetricCard(title: String, value: String, detail: String, palette: NativeThemePalette) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(palette.muted)
-
-            Text(value)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(palette.ink)
-
-            Text(detail)
-                .font(.system(size: 11))
-                .foregroundStyle(palette.muted)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.8))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(palette.panelBorder, lineWidth: 1)
-        )
-    }
 }
 
 private struct NativeSwiftLayoutMetrics {
@@ -997,7 +917,11 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
 
         let password = passwordCharacters.joined()
-        return NativeGeneratedPassword(value: password, entropy: estimateEntropy(charsetSize: allCharacters.count, length: settings.length))
+        return NativeGeneratedPassword(
+            value: password,
+            entropy: estimateEntropy(charsetSize: allCharacters.count, length: settings.length),
+            charsetSize: allCharacters.count
+        )
     }
 
     private static func buildPools(using settings: NativePasswordSettings) -> [NativeCharacterPool] {
@@ -1151,6 +1075,11 @@ struct NativeGeneratedPassword: Identifiable {
     let id = UUID()
     let value: String
     let entropy: Double
+    let charsetSize: Int
+
+    var analysis: NativePasswordAnalysis {
+        NativePasswordAnalysis(password: value, entropy: entropy, charsetSize: charsetSize)
+    }
 
     var displayValue: String {
         if value.count <= 100 {
@@ -1167,29 +1096,48 @@ struct NativeGeneratedPassword: Identifiable {
 
         return "表示は先頭 \(formatNumber(100)) 文字までです。実際の文字数は \(formatNumber(value.count)) 文字です。"
     }
+}
 
-    var strengthLabel: String {
-        let uniqueCoverage = getUniqueCoverage(value)
-        var adjustedEntropy = entropy
+struct NativePasswordAnalysis {
+    let entropy: Double
+    let charsetSize: Int
+    let expectedDistinctCount: Double
+    let actualDistinctCount: Int
+    let variety: Double
+    let balance: Double
+    let warnings: [String]
 
-        if uniqueCoverage < 0.45 {
-            adjustedEntropy -= 20
-        } else if uniqueCoverage < 0.6 {
-            adjustedEntropy -= 10
-        } else if uniqueCoverage < 0.75 {
-            adjustedEntropy -= 5
+    init(password: String, entropy: Double, charsetSize: Int) {
+        let actualDistinctCount = getDistinctCharacterCount(password)
+        let expectedDistinctCount = getExpectedDistinctCount(charsetSize: charsetSize, length: password.count)
+        let variety = min(1, Double(actualDistinctCount) / max(expectedDistinctCount, 1))
+        let balance = getBalanceScore(password)
+        var warnings: [String] = []
+
+        if entropy < 60 {
+            warnings.append("文字数または文字種が少なめです")
+        }
+        if variety < 0.88 {
+            warnings.append("この文字数に対して、重複がやや多めです")
+        }
+        if balance < 0.82 {
+            warnings.append("一部の文字に偏りがあります")
+        }
+        if warnings.isEmpty {
+            warnings.append("この文字数では自然なばらつきです")
         }
 
-        if adjustedEntropy >= 100 {
-            return "Very Strong"
-        }
-        if adjustedEntropy >= 80 {
-            return "Strong"
-        }
-        if adjustedEntropy >= 60 {
-            return "Good"
-        }
-        return "Basic"
+        self.entropy = entropy
+        self.charsetSize = charsetSize
+        self.expectedDistinctCount = expectedDistinctCount
+        self.actualDistinctCount = actualDistinctCount
+        self.variety = variety
+        self.balance = balance
+        self.warnings = warnings
+    }
+
+    var warningDetail: String {
+        warnings.joined(separator: " / ")
     }
 }
 
@@ -1214,7 +1162,21 @@ private struct NativePasswordRow: View {
                 }
 
                 HStack(spacing: 6) {
-                    Text(password.strengthLabel)
+                    Text("Variety \(formatNumber(password.analysis.variety * 100))%")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(palette.ink)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.88))
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(palette.panelBorder, lineWidth: 1)
+                        )
+
+                    Text("Balance \(formatNumber(password.analysis.balance * 100))%")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(palette.accentStrong)
                         .padding(.horizontal, 8)
@@ -1223,17 +1185,12 @@ private struct NativePasswordRow: View {
                             Capsule()
                                 .fill(palette.accent.opacity(0.12))
                         )
-
-                    Text("推定 \(formatNumber(password.entropy)) bits")
-                        .font(.system(size: 11))
-                        .foregroundStyle(palette.muted)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.05))
-                        )
                 }
+
+                Text(password.analysis.warningDetail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(spacing: 6) {
@@ -1507,12 +1464,42 @@ private func estimateEntropy(charsetSize: Int, length: Int) -> Double {
     return (Double(length) * log2(Double(charsetSize)) * 10).rounded() / 10
 }
 
-private func getUniqueCoverage(_ password: String) -> Double {
+private func getDistinctCharacterCount(_ password: String) -> Int {
+    Set(password.map(String.init)).count
+}
+
+private func getExpectedDistinctCount(charsetSize: Int, length: Int) -> Double {
+    guard charsetSize > 0, length > 0 else {
+        return 0
+    }
+
+    let charsetSizeDouble = Double(charsetSize)
+    let remainingProbability = pow((charsetSizeDouble - 1) / charsetSizeDouble, Double(length))
+    return charsetSizeDouble * (1 - remainingProbability)
+}
+
+private func getBalanceScore(_ password: String) -> Double {
     guard !password.isEmpty else {
         return 0
     }
 
-    return Double(Set(password.map(String.init)).count) / Double(password.count)
+    var counts: [String: Int] = [:]
+    for character in password.map(String.init) {
+        counts[character, default: 0] += 1
+    }
+
+    let total = Double(password.count)
+    let distinctCount = counts.count
+    guard distinctCount > 1 else {
+        return distinctCount == 1 ? 1 : 0
+    }
+
+    let shannonEntropy = counts.values.reduce(0.0) { partialResult, count in
+        let probability = Double(count) / total
+        return partialResult - (probability * log2(probability))
+    }
+
+    return min(1, max(0, shannonEntropy / log2(Double(distinctCount))))
 }
 
 private func copyToPasteboard(_ text: String) {
