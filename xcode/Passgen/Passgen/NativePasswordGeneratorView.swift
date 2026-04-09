@@ -50,6 +50,7 @@ private let nativeMaxPasswordLength = 999_999
 private let nativeMinPasswordCount = 1
 private let nativeMaxPasswordCount = 30
 private let nativePasswordYieldInterval = 2_048
+private let nativeMaxConsecutiveRunLimit = 99
 private let uppercaseCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 private let lowercaseCharacters = "abcdefghijklmnopqrstuvwxyz"
 private let digitCharacters = "0123456789"
@@ -273,10 +274,10 @@ struct NativePasswordGeneratorView: View {
                 .foregroundStyle(palette.muted)
 
             VStack(alignment: .leading, spacing: 7) {
-                selectedCharactersRow(title: "大文字", characters: uppercaseCharacters, selectedCharacters: selectedCharacterSet(for: .uppercase), palette: palette)
-                selectedCharactersRow(title: "小文字", characters: lowercaseCharacters, selectedCharacters: selectedCharacterSet(for: .lowercase), palette: palette)
-                selectedCharactersRow(title: "数字", characters: digitCharacters, selectedCharacters: selectedCharacterSet(for: .digits), palette: palette)
-                selectedCharactersRow(title: "記号", characters: nativeSymbolOptions.map(\.value).joined(), selectedCharacters: selectedCharacterSet(for: .symbols), palette: palette)
+                selectedCharactersRow(title: "大文字", characters: uppercaseCharacters, selectedCharacters: selectedCharacterSet(for: .uppercase), excludedCharacters: excludedCharacterSet(for: .uppercase), palette: palette)
+                selectedCharactersRow(title: "小文字", characters: lowercaseCharacters, selectedCharacters: selectedCharacterSet(for: .lowercase), excludedCharacters: excludedCharacterSet(for: .lowercase), palette: palette)
+                selectedCharactersRow(title: "数字", characters: digitCharacters, selectedCharacters: selectedCharacterSet(for: .digits), excludedCharacters: excludedCharacterSet(for: .digits), palette: palette)
+                selectedCharactersRow(title: "記号", characters: nativeSymbolOptions.map(\.value).joined(), selectedCharacters: selectedCharacterSet(for: .symbols), excludedCharacters: excludedCharacterSet(for: .symbols), palette: palette)
             }
             .padding(12)
             .background(
@@ -292,6 +293,23 @@ struct NativePasswordGeneratorView: View {
 
     private func selectedCharacterSet(for tab: NativeCharacterTab) -> Set<String> {
         return Set(viewModel.selectedCharacters(for: tab))
+    }
+
+    private func excludedCharacterSet(for tab: NativeCharacterTab) -> Set<String> {
+        guard viewModel.settings.excludeSimilar else {
+            return []
+        }
+
+        switch tab {
+        case .uppercase:
+            return nativeSimilarCharacters.intersection(Set(uppercaseCharacters.map(String.init)))
+        case .lowercase:
+            return nativeSimilarCharacters.intersection(Set(lowercaseCharacters.map(String.init)))
+        case .digits:
+            return nativeSimilarCharacters.intersection(Set(digitCharacters.map(String.init)))
+        case .symbols:
+            return []
+        }
     }
 
     private func characterTabBar(palette: NativeThemePalette) -> some View {
@@ -511,7 +529,7 @@ struct NativePasswordGeneratorView: View {
         .disabled(viewModel.isGenerating)
     }
 
-    private func selectedCharactersRow(title: String, characters: String, selectedCharacters: Set<String>, palette: NativeThemePalette) -> some View {
+    private func selectedCharactersRow(title: String, characters: String, selectedCharacters: Set<String>, excludedCharacters: Set<String>, palette: NativeThemePalette) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Text(title)
                 .font(.system(size: 11, weight: .semibold))
@@ -521,6 +539,7 @@ struct NativePasswordGeneratorView: View {
             FlowCharacterText(
                 characters: characters.map(String.init),
                 selectedCharacters: selectedCharacters,
+                excludedCharacters: excludedCharacters,
                 selectedColor: palette.ink,
                 unselectedColor: palette.muted.opacity(0.42)
             )
@@ -535,14 +554,107 @@ struct NativePasswordGeneratorView: View {
                 settingChip(title: "似た文字を除外する", selected: viewModel.settings.excludeSimilar, palette: palette) {
                     viewModel.toggleExcludeSimilar()
                 }
+                settingChip(title: "文字種をなるべく均等にする", selected: viewModel.settings.equalizeCharacterRatios, palette: palette) {
+                    viewModel.toggleEqualizeCharacterRatios()
+                }
+                settingChip(title: "同じ文字を連続させない", selected: viewModel.disallowConsecutiveDuplicates, palette: palette) {
+                    viewModel.toggleDisallowConsecutiveDuplicates()
+                }
+            }
 
-                settingChip(title: "同じ文字を連続させない", selected: viewModel.settings.noConsecutive, palette: palette) {
-                    viewModel.toggleNoConsecutive()
+            VStack(alignment: .leading, spacing: 10) {
+                Text("先頭文字の設定")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+
+                firstCharacterModeBar(palette: palette)
+
+                if viewModel.settings.firstCharacterMode == .characterSet {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
+                        firstCharacterChip(tab: .uppercase, title: "大文字", palette: palette)
+                        firstCharacterChip(tab: .lowercase, title: "小文字", palette: palette)
+                        firstCharacterChip(tab: .digits, title: "数字", palette: palette)
+                        firstCharacterChip(tab: .symbols, title: "記号", palette: palette)
+                    }
+                } else {
+                    TextField("例: abc_", text: Binding(
+                        get: { viewModel.settings.fixedPrefix },
+                        set: { viewModel.updateFixedPrefix($0) }
+                    ))
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(viewModel.isGenerating ? palette.disabledBackground : Color.white.opacity(0.96))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(palette.panelBorder, lineWidth: 1)
+                    )
+                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
+                    .disabled(viewModel.isGenerating)
                 }
             }
         }
         .padding(16)
         .nativeCardStyle(palette: palette)
+    }
+
+    private func firstCharacterChip(tab: NativeCharacterTab, title: String, palette: NativeThemePalette) -> some View {
+        let isSelected = viewModel.isFirstCharacterAllowed(for: tab)
+        let foregroundColor = isSelected ? Color.white : (viewModel.isGenerating ? palette.disabledText : palette.muted)
+        let backgroundView: AnyShapeStyle = isSelected
+            ? AnyShapeStyle(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .top, endPoint: .bottom))
+            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : Color.white.opacity(0.95))
+        let borderColor = isSelected ? palette.accentStrong.opacity(0.92) : palette.panelBorder
+
+        return Button {
+            viewModel.toggleFirstCharacterAllowed(for: tab)
+        } label: {
+            Text(title)
+                .font(.system(size: 13, weight: isSelected ? .bold : .regular))
+                .frame(maxWidth: .infinity, minHeight: 40)
+                .foregroundStyle(foregroundColor)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(backgroundView)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(borderColor, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isGenerating)
+    }
+
+    private func firstCharacterModeBar(palette: NativeThemePalette) -> some View {
+        HStack(spacing: 8) {
+            ForEach(NativeFirstCharacterMode.allCases) { mode in
+                let isSelected = viewModel.settings.firstCharacterMode == mode
+
+                Button {
+                    viewModel.selectFirstCharacterMode(mode)
+                } label: {
+                    Text(mode.title)
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                        .foregroundStyle(isSelected ? palette.accentStrong : palette.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(isSelected ? palette.accent.opacity(0.14) : Color.white.opacity(0.82))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(isSelected ? palette.accent.opacity(0.34) : palette.panelBorder, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isGenerating)
+            }
+        }
     }
 
     private func themeCard(palette: NativeThemePalette) -> some View {
@@ -810,18 +922,65 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
     }
 
+    func isFirstCharacterAllowed(for tab: NativeCharacterTab) -> Bool {
+        switch tab {
+        case .uppercase:
+            return settings.allowUppercaseFirst
+        case .lowercase:
+            return settings.allowLowercaseFirst
+        case .digits:
+            return settings.allowDigitsFirst
+        case .symbols:
+            return settings.allowSymbolsFirst
+        }
+    }
+
+    func toggleFirstCharacterAllowed(for tab: NativeCharacterTab) {
+        switch tab {
+        case .uppercase:
+            settings.allowUppercaseFirst.toggle()
+        case .lowercase:
+            settings.allowLowercaseFirst.toggle()
+        case .digits:
+            settings.allowDigitsFirst.toggle()
+        case .symbols:
+            settings.allowSymbolsFirst.toggle()
+        }
+
+        persistSettings()
+    }
+
+    func selectFirstCharacterMode(_ mode: NativeFirstCharacterMode) {
+        settings.firstCharacterMode = mode
+        persistSettings()
+    }
+
     func toggleExcludeSimilar() {
         settings.excludeSimilar.toggle()
         persistSettings()
     }
 
-    func toggleNoConsecutive() {
-        settings.noConsecutive.toggle()
+    func toggleEqualizeCharacterRatios() {
+        settings.equalizeCharacterRatios.toggle()
+        persistSettings()
+    }
+
+    var disallowConsecutiveDuplicates: Bool {
+        settings.maxConsecutiveRun == 1
+    }
+
+    func toggleDisallowConsecutiveDuplicates() {
+        settings.maxConsecutiveRun = settings.maxConsecutiveRun == 1 ? 0 : 1
         persistSettings()
     }
 
     func selectTheme(_ theme: NativeTheme) {
         settings.theme = theme
+        persistSettings()
+    }
+
+    func updateFixedPrefix(_ value: String) {
+        settings.fixedPrefix = value
         persistSettings()
     }
 
@@ -973,13 +1132,37 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             return "選択した条件で使える文字がありません。設定を見直してください。"
         }
 
-        if settings.length < pools.count {
-            return "文字数が短すぎます。"
+        let activePoolIDs = Set(pools.map(\.id))
+        switch settings.firstCharacterMode {
+        case .characterSet:
+            let allowedFirstPoolIDs = Self.allowedFirstPoolIDs(using: settings).intersection(activePoolIDs)
+            if allowedFirstPoolIDs.isEmpty {
+                return "先頭に使える文字がありません。設定を見直してください。"
+            }
+        case .fixedPrefix:
+            let prefixCharacters = settings.fixedPrefix.map(String.init)
+            if prefixCharacters.count >= settings.length {
+                return "先頭に固定する文字は \(formatNumber(max(1, settings.length - 1))) 文字までにしてください。"
+            }
+
+            if !prefixCharacters.isEmpty {
+                let availableCharacters = Set(Self.combinePools(pools))
+                if prefixCharacters.contains(where: { !availableCharacters.contains($0) }) {
+                    return "先頭に固定する文字に、現在の設定では使えない文字が含まれています。"
+                }
+            }
+
+            if settings.maxConsecutiveRun > 0 {
+                let longestPrefixRun = Self.longestTrailingRun(in: prefixCharacters)
+                if longestPrefixRun > settings.maxConsecutiveRun {
+                    return "先頭に固定する文字が、同一文字の最大連続数を超えています。"
+                }
+            }
         }
 
         let combinedCharacters = Self.combinePools(pools)
-        if settings.noConsecutive && combinedCharacters.count < 2 && settings.length > 1 {
-            return "同じ文字を連続させない設定では、少なくとも 2 種類以上の文字が必要です。"
+        if settings.maxConsecutiveRun > 0 && combinedCharacters.count < 2 && settings.length > settings.maxConsecutiveRun {
+            return "同一文字の最大連続数では条件を満たせません。"
         }
 
         return nil
@@ -1024,6 +1207,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         settings.lowercase = settings.lowercaseSelections.contains(true)
         settings.digits = settings.digitSelections.contains(true)
         settings.includeSymbols = settings.symbols.contains(true)
+
     }
 
     private func persistSettings() {
@@ -1048,6 +1232,11 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         var normalizedSettings = restoredSettings
         normalizedSettings.length = clampNumber(restoredSettings.length, minimum: nativeMinPasswordLength, maximum: nativeMaxPasswordLength)
         normalizedSettings.count = clampNumber(restoredSettings.count, minimum: nativeMinPasswordCount, maximum: getMaxCountForLength(normalizedSettings.length))
+        normalizedSettings.minimumUppercase = clampNumber(restoredSettings.minimumUppercase, minimum: 0, maximum: normalizedSettings.length)
+        normalizedSettings.minimumLowercase = clampNumber(restoredSettings.minimumLowercase, minimum: 0, maximum: normalizedSettings.length)
+        normalizedSettings.minimumDigits = clampNumber(restoredSettings.minimumDigits, minimum: 0, maximum: normalizedSettings.length)
+        normalizedSettings.minimumSymbols = clampNumber(restoredSettings.minimumSymbols, minimum: 0, maximum: normalizedSettings.length)
+        normalizedSettings.maxConsecutiveRun = clampNumber(restoredSettings.maxConsecutiveRun, minimum: 0, maximum: nativeMaxConsecutiveRunLimit)
 
         if normalizedSettings.symbols.count != nativeSymbolOptions.count {
             normalizedSettings.symbols = Array(repeating: true, count: nativeSymbolOptions.count)
@@ -1092,33 +1281,67 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     private static func createPassword(using settings: NativePasswordSettings) async throws -> NativeGeneratedPassword {
         let pools = buildPools(using: settings)
+        let prefixCharacters = settings.firstCharacterMode == .fixedPrefix ? settings.fixedPrefix.map(String.init) : []
+        let targetCountMap = settings.equalizeCharacterRatios
+            ? try buildTargetCountMap(pools: pools, length: settings.length)
+            : nil
         let allCharacters = combinePools(pools)
-        let requiredPoolIDs = Set(pools.map(\.id))
-        var mutableRequiredPoolIDs = requiredPoolIDs
-        var passwordCharacters: [String] = []
-        var previousCharacter = ""
+        let resolvedAllowedFirstPoolIDs: Set<String>
+        switch settings.firstCharacterMode {
+        case .characterSet:
+            resolvedAllowedFirstPoolIDs = Self.allowedFirstPoolIDs(using: settings).intersection(Set(pools.map(\.id)))
+        case .fixedPrefix:
+            resolvedAllowedFirstPoolIDs = Set(pools.map(\.id))
+        }
+        let maximumConsecutiveRun = settings.maxConsecutiveRun
+        var currentCountMap = Dictionary(uniqueKeysWithValues: pools.map { ($0.id, 0) })
+        var passwordCharacters: [String] = prefixCharacters
+        var previousCharacter = prefixCharacters.last ?? ""
+        var consecutiveCount = Self.longestTrailingRun(in: prefixCharacters)
         var iterationsSinceYield = 0
+
+        for character in prefixCharacters {
+            guard let poolID = Self.poolID(for: character, in: pools) else {
+                throw NativeGenerationError.unavailableCharacters
+            }
+            currentCountMap[poolID, default: 0] += 1
+        }
 
         while passwordCharacters.count < settings.length {
             let remainingSlots = settings.length - passwordCharacters.count
             let candidatePools = try selectCandidatePools(
                 pools: pools,
-                requiredPoolIDs: mutableRequiredPoolIDs,
+                currentCountMap: currentCountMap,
+                targetCountMap: targetCountMap,
                 remainingSlots: remainingSlots,
-                noConsecutive: settings.noConsecutive,
-                previousCharacter: previousCharacter
+                maximumConsecutiveRun: maximumConsecutiveRun,
+                previousCharacter: previousCharacter,
+                consecutiveCount: consecutiveCount,
+                allowedFirstPoolIDs: resolvedAllowedFirstPoolIDs,
+                isFirstCharacter: passwordCharacters.count == prefixCharacters.count && prefixCharacters.isEmpty
             )
 
             let selectedPoolIndex = try randomInt(upperBound: candidatePools.count)
             let pool = candidatePools[selectedPoolIndex]
 
-            guard let character = try pickCharacter(from: pool.characters, previousCharacter: previousCharacter, noConsecutive: settings.noConsecutive) else {
+            guard let character = try pickCharacter(
+                from: pool.characters,
+                previousCharacter: previousCharacter,
+                consecutiveCount: consecutiveCount,
+                maximumConsecutiveRun: maximumConsecutiveRun
+            ) else {
                 throw NativeGenerationError.unavailableCharacters
             }
 
             passwordCharacters.append(character)
-            previousCharacter = character
-            mutableRequiredPoolIDs.remove(pool.id)
+            currentCountMap[pool.id, default: 0] += 1
+
+            if character == previousCharacter {
+                consecutiveCount += 1
+            } else {
+                previousCharacter = character
+                consecutiveCount = 1
+            }
             iterationsSinceYield += 1
 
             if iterationsSinceYield >= nativePasswordYieldInterval {
@@ -1137,21 +1360,20 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     private static func buildPools(using settings: NativePasswordSettings) -> [NativeCharacterPool] {
         var pools: [NativeCharacterPool] = []
-
-        appendPoolIfNeeded(&pools, isEnabled: settings.uppercase, id: "uppercase", sourceCharacters: selectedCharacters(from: uppercaseCharacters, selections: settings.uppercaseSelections).joined(), excludeSimilar: settings.excludeSimilar)
-        appendPoolIfNeeded(&pools, isEnabled: settings.lowercase, id: "lowercase", sourceCharacters: selectedCharacters(from: lowercaseCharacters, selections: settings.lowercaseSelections).joined(), excludeSimilar: settings.excludeSimilar)
-        appendPoolIfNeeded(&pools, isEnabled: settings.digits, id: "digits", sourceCharacters: selectedCharacters(from: digitCharacters, selections: settings.digitSelections).joined(), excludeSimilar: settings.excludeSimilar)
-        appendPoolIfNeeded(&pools, isEnabled: settings.includeSymbols, id: "symbols", sourceCharacters: selectedSymbolCharacters(from: settings), excludeSimilar: false)
+        appendPoolIfNeeded(&pools, isEnabled: settings.uppercase, id: "uppercase", sourceCharacters: selectedCharacters(from: uppercaseCharacters, selections: settings.uppercaseSelections).joined(), excludeSimilar: settings.excludeSimilar, excludedCharacters: [])
+        appendPoolIfNeeded(&pools, isEnabled: settings.lowercase, id: "lowercase", sourceCharacters: selectedCharacters(from: lowercaseCharacters, selections: settings.lowercaseSelections).joined(), excludeSimilar: settings.excludeSimilar, excludedCharacters: [])
+        appendPoolIfNeeded(&pools, isEnabled: settings.digits, id: "digits", sourceCharacters: selectedCharacters(from: digitCharacters, selections: settings.digitSelections).joined(), excludeSimilar: settings.excludeSimilar, excludedCharacters: [])
+        appendPoolIfNeeded(&pools, isEnabled: settings.includeSymbols, id: "symbols", sourceCharacters: selectedSymbolCharacters(from: settings), excludeSimilar: false, excludedCharacters: [])
 
         return pools
     }
 
-    private static func appendPoolIfNeeded(_ pools: inout [NativeCharacterPool], isEnabled: Bool, id: String, sourceCharacters: String, excludeSimilar: Bool) {
+    private static func appendPoolIfNeeded(_ pools: inout [NativeCharacterPool], isEnabled: Bool, id: String, sourceCharacters: String, excludeSimilar: Bool, excludedCharacters: Set<String>) {
         guard isEnabled else {
             return
         }
 
-        let normalizedCharacters = normalizeCharacters(sourceCharacters, excludeSimilar: excludeSimilar)
+        let normalizedCharacters = normalizeCharacters(sourceCharacters, excludeSimilar: excludeSimilar, excludedCharacters: excludedCharacters)
         guard !normalizedCharacters.isEmpty else {
             return
         }
@@ -1159,11 +1381,15 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         pools.append(NativeCharacterPool(id: id, characters: normalizedCharacters))
     }
 
-    private static func normalizeCharacters(_ characters: String, excludeSimilar: Bool) -> [String] {
+    private static func normalizeCharacters(_ characters: String, excludeSimilar: Bool, excludedCharacters: Set<String>) -> [String] {
         var seen = Set<String>()
 
         return characters.map(String.init).filter { character in
             if excludeSimilar && nativeSimilarCharacters.contains(character) {
+                return false
+            }
+
+            if excludedCharacters.contains(character) {
                 return false
             }
 
@@ -1190,49 +1416,153 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         return pools.flatMap(\.characters).filter { seen.insert($0).inserted }
     }
 
-    private static func selectCandidatePools(
-        pools: [NativeCharacterPool],
-        requiredPoolIDs: Set<String>,
-        remainingSlots: Int,
-        noConsecutive: Bool,
-        previousCharacter: String
-    ) throws -> [NativeCharacterPool] {
-        let requiredPools = pools.filter { requiredPoolIDs.contains($0.id) }
-        let sourcePools: [NativeCharacterPool]
+    private static func poolID(for character: String, in pools: [NativeCharacterPool]) -> String? {
+        pools.first { $0.characters.contains(character) }?.id
+    }
 
-        if remainingSlots == requiredPools.count {
-            sourcePools = requiredPools
-        } else if !requiredPools.isEmpty {
-            let shouldPrioritizeRequiredPools = try randomInt(upperBound: 100) < 55
-            sourcePools = shouldPrioritizeRequiredPools ? requiredPools : pools
-        } else {
-            sourcePools = pools
+    private static func longestTrailingRun(in characters: [String]) -> Int {
+        guard let lastCharacter = characters.last else {
+            return 0
         }
 
-        let validPools = sourcePools.filter { hasAvailableCharacter(in: $0.characters, previousCharacter: previousCharacter, noConsecutive: noConsecutive) }
+        var count = 0
+        for character in characters.reversed() {
+            if character == lastCharacter {
+                count += 1
+            } else {
+                break
+            }
+        }
+
+        return count
+    }
+
+    private static func selectCandidatePools(
+        pools: [NativeCharacterPool],
+        currentCountMap: [String: Int],
+        targetCountMap: [String: Int]?,
+        remainingSlots: Int,
+        maximumConsecutiveRun: Int,
+        previousCharacter: String,
+        consecutiveCount: Int,
+        allowedFirstPoolIDs: Set<String>,
+        isFirstCharacter: Bool
+    ) throws -> [NativeCharacterPool] {
+        let firstCharacterFilteredPools = pools.filter { pool in
+            !isFirstCharacter || allowedFirstPoolIDs.contains(pool.id)
+        }
+
+        let validAllPools = firstCharacterFilteredPools.filter {
+            hasAvailableCharacter(
+                in: $0.characters,
+                previousCharacter: previousCharacter,
+                consecutiveCount: consecutiveCount,
+                maximumConsecutiveRun: maximumConsecutiveRun
+            )
+        }
+
+        guard !validAllPools.isEmpty else {
+            throw NativeGenerationError.unavailableCharacters
+        }
+
+        let sourcePools: [NativeCharacterPool]
+        if let targetCountMap {
+            let targetPools = validAllPools.filter { pool in
+                currentCountMap[pool.id, default: 0] < targetCountMap[pool.id, default: 0]
+            }
+
+            let remainingTargetCount = targetCountMap.reduce(into: 0) { partialResult, entry in
+                partialResult += max(0, entry.value - currentCountMap[entry.key, default: 0])
+            }
+
+            if remainingSlots == remainingTargetCount && !targetPools.isEmpty {
+                sourcePools = targetPools
+            } else if !targetPools.isEmpty {
+                let maxGap = targetPools.map { targetCountMap[$0.id, default: 0] - currentCountMap[$0.id, default: 0] }.max() ?? 0
+                sourcePools = targetPools.filter { targetCountMap[$0.id, default: 0] - currentCountMap[$0.id, default: 0] == maxGap }
+            } else {
+                sourcePools = validAllPools
+            }
+        } else {
+            sourcePools = validAllPools
+        }
+
+        let validPools = sourcePools.filter {
+            hasAvailableCharacter(
+                in: $0.characters,
+                previousCharacter: previousCharacter,
+                consecutiveCount: consecutiveCount,
+                maximumConsecutiveRun: maximumConsecutiveRun
+            )
+        }
         if !validPools.isEmpty {
             return validPools
         }
 
-        return pools.filter { hasAvailableCharacter(in: $0.characters, previousCharacter: previousCharacter, noConsecutive: noConsecutive) }
+        return validAllPools
     }
 
-    private static func hasAvailableCharacter(in characters: [String], previousCharacter: String, noConsecutive: Bool) -> Bool {
-        if !noConsecutive {
+    private static func hasAvailableCharacter(in characters: [String], previousCharacter: String, consecutiveCount: Int, maximumConsecutiveRun: Int) -> Bool {
+        if maximumConsecutiveRun == 0 || previousCharacter.isEmpty || consecutiveCount < maximumConsecutiveRun {
             return !characters.isEmpty
         }
 
         return characters.contains { $0 != previousCharacter }
     }
 
-    private static func pickCharacter(from characters: [String], previousCharacter: String, noConsecutive: Bool) throws -> String? {
-        let candidates = noConsecutive ? characters.filter { $0 != previousCharacter } : characters
+    private static func pickCharacter(from characters: [String], previousCharacter: String, consecutiveCount: Int, maximumConsecutiveRun: Int) throws -> String? {
+        let shouldRestrictRepeatedCharacter = maximumConsecutiveRun > 0 && !previousCharacter.isEmpty && consecutiveCount >= maximumConsecutiveRun
+        let candidates = shouldRestrictRepeatedCharacter ? characters.filter { $0 != previousCharacter } : characters
 
         guard !candidates.isEmpty else {
             return nil
         }
 
         return candidates[try randomInt(upperBound: candidates.count)]
+    }
+
+    private static func allowedFirstPoolIDs(using settings: NativePasswordSettings) -> Set<String> {
+        var allowedPoolIDs = Set<String>()
+
+        if settings.allowUppercaseFirst {
+            allowedPoolIDs.insert("uppercase")
+        }
+        if settings.allowLowercaseFirst {
+            allowedPoolIDs.insert("lowercase")
+        }
+        if settings.allowDigitsFirst {
+            allowedPoolIDs.insert("digits")
+        }
+        if settings.allowSymbolsFirst {
+            allowedPoolIDs.insert("symbols")
+        }
+
+        return allowedPoolIDs
+    }
+
+    private static func buildTargetCountMap(
+        pools: [NativeCharacterPool],
+        length: Int
+    ) throws -> [String: Int] {
+        guard !pools.isEmpty else {
+            throw NativeGenerationError.unavailableCharacters
+        }
+
+        var targetCountMap = Dictionary(uniqueKeysWithValues: pools.map { ($0.id, 0) })
+        var remainingSlots = length
+
+        while remainingSlots > 0 {
+            let minimumTarget = targetCountMap.values.min() ?? 0
+            let candidateIDs = targetCountMap.compactMap { entry in
+                entry.value == minimumTarget ? entry.key : nil
+            }
+            let selectedIndex = try randomInt(upperBound: candidateIDs.count)
+            let selectedID = candidateIDs[selectedIndex]
+            targetCountMap[selectedID, default: 0] += 1
+            remainingSlots -= 1
+        }
+
+        return targetCountMap
     }
 
     private static func randomInt(upperBound: Int) throws -> Int {
@@ -1272,8 +1602,20 @@ struct NativePasswordSettings: Codable {
     var symbols: [Bool]
     var length: Int
     var count: Int
+    var minimumUppercase: Int
+    var minimumLowercase: Int
+    var minimumDigits: Int
+    var minimumSymbols: Int
     var excludeSimilar: Bool
-    var noConsecutive: Bool
+    var equalizeCharacterRatios: Bool
+    var allowUppercaseFirst: Bool
+    var allowLowercaseFirst: Bool
+    var allowDigitsFirst: Bool
+    var allowSymbolsFirst: Bool
+    var firstCharacterMode: NativeFirstCharacterMode
+    var fixedPrefix: String
+    var maxConsecutiveRun: Int
+    var excludedCharacters: String
     var theme: NativeTheme
 
     static let defaultSettings = NativePasswordSettings(
@@ -1288,8 +1630,20 @@ struct NativePasswordSettings: Codable {
         symbols: Array(repeating: true, count: nativeSymbolOptions.count),
         length: 16,
         count: 6,
+        minimumUppercase: 25,
+        minimumLowercase: 25,
+        minimumDigits: 25,
+        minimumSymbols: 25,
         excludeSimilar: true,
-        noConsecutive: false,
+        equalizeCharacterRatios: false,
+        allowUppercaseFirst: true,
+        allowLowercaseFirst: true,
+        allowDigitsFirst: true,
+        allowSymbolsFirst: true,
+        firstCharacterMode: .characterSet,
+        fixedPrefix: "",
+        maxConsecutiveRun: 0,
+        excludedCharacters: "",
         theme: .blue
     )
 
@@ -1305,7 +1659,20 @@ struct NativePasswordSettings: Codable {
         case symbols
         case length
         case count
+        case minimumUppercase
+        case minimumLowercase
+        case minimumDigits
+        case minimumSymbols
         case excludeSimilar
+        case equalizeCharacterRatios
+        case allowUppercaseFirst
+        case allowLowercaseFirst
+        case allowDigitsFirst
+        case allowSymbolsFirst
+        case firstCharacterMode
+        case fixedPrefix
+        case maxConsecutiveRun
+        case excludedCharacters
         case noConsecutive
         case theme
     }
@@ -1322,8 +1689,20 @@ struct NativePasswordSettings: Codable {
         symbols: [Bool],
         length: Int,
         count: Int,
+        minimumUppercase: Int,
+        minimumLowercase: Int,
+        minimumDigits: Int,
+        minimumSymbols: Int,
         excludeSimilar: Bool,
-        noConsecutive: Bool,
+        equalizeCharacterRatios: Bool,
+        allowUppercaseFirst: Bool,
+        allowLowercaseFirst: Bool,
+        allowDigitsFirst: Bool,
+        allowSymbolsFirst: Bool,
+        firstCharacterMode: NativeFirstCharacterMode,
+        fixedPrefix: String,
+        maxConsecutiveRun: Int,
+        excludedCharacters: String,
         theme: NativeTheme
     ) {
         self.uppercase = uppercase
@@ -1337,8 +1716,20 @@ struct NativePasswordSettings: Codable {
         self.symbols = symbols
         self.length = length
         self.count = count
+        self.minimumUppercase = minimumUppercase
+        self.minimumLowercase = minimumLowercase
+        self.minimumDigits = minimumDigits
+        self.minimumSymbols = minimumSymbols
         self.excludeSimilar = excludeSimilar
-        self.noConsecutive = noConsecutive
+        self.equalizeCharacterRatios = equalizeCharacterRatios
+        self.allowUppercaseFirst = allowUppercaseFirst
+        self.allowLowercaseFirst = allowLowercaseFirst
+        self.allowDigitsFirst = allowDigitsFirst
+        self.allowSymbolsFirst = allowSymbolsFirst
+        self.firstCharacterMode = firstCharacterMode
+        self.fixedPrefix = fixedPrefix
+        self.maxConsecutiveRun = maxConsecutiveRun
+        self.excludedCharacters = excludedCharacters
         self.theme = theme
     }
 
@@ -1356,8 +1747,26 @@ struct NativePasswordSettings: Codable {
         symbols = try container.decodeIfPresent([Bool].self, forKey: .symbols) ?? Self.defaultSettings.symbols
         length = try container.decodeIfPresent(Int.self, forKey: .length) ?? Self.defaultSettings.length
         count = try container.decodeIfPresent(Int.self, forKey: .count) ?? Self.defaultSettings.count
+        minimumUppercase = try container.decodeIfPresent(Int.self, forKey: .minimumUppercase) ?? (uppercase ? 25 : 0)
+        minimumLowercase = try container.decodeIfPresent(Int.self, forKey: .minimumLowercase) ?? (lowercase ? 25 : 0)
+        minimumDigits = try container.decodeIfPresent(Int.self, forKey: .minimumDigits) ?? (digits ? 25 : 0)
+        minimumSymbols = try container.decodeIfPresent(Int.self, forKey: .minimumSymbols) ?? (includeSymbols ? 25 : 0)
         excludeSimilar = try container.decodeIfPresent(Bool.self, forKey: .excludeSimilar) ?? Self.defaultSettings.excludeSimilar
-        noConsecutive = try container.decodeIfPresent(Bool.self, forKey: .noConsecutive) ?? Self.defaultSettings.noConsecutive
+        equalizeCharacterRatios = try container.decodeIfPresent(Bool.self, forKey: .equalizeCharacterRatios) ?? Self.defaultSettings.equalizeCharacterRatios
+        allowUppercaseFirst = try container.decodeIfPresent(Bool.self, forKey: .allowUppercaseFirst) ?? Self.defaultSettings.allowUppercaseFirst
+        allowLowercaseFirst = try container.decodeIfPresent(Bool.self, forKey: .allowLowercaseFirst) ?? Self.defaultSettings.allowLowercaseFirst
+        allowDigitsFirst = try container.decodeIfPresent(Bool.self, forKey: .allowDigitsFirst) ?? Self.defaultSettings.allowDigitsFirst
+        allowSymbolsFirst = try container.decodeIfPresent(Bool.self, forKey: .allowSymbolsFirst) ?? Self.defaultSettings.allowSymbolsFirst
+        firstCharacterMode = try container.decodeIfPresent(NativeFirstCharacterMode.self, forKey: .firstCharacterMode)
+            ?? (try container.decodeIfPresent(String.self, forKey: .fixedPrefix).flatMap { $0.isEmpty ? nil : $0 } != nil ? .fixedPrefix : .characterSet)
+        fixedPrefix = try container.decodeIfPresent(String.self, forKey: .fixedPrefix) ?? ""
+        if let decodedMaxConsecutiveRun = try container.decodeIfPresent(Int.self, forKey: .maxConsecutiveRun) {
+            maxConsecutiveRun = decodedMaxConsecutiveRun
+        } else {
+            let legacyNoConsecutive = try container.decodeIfPresent(Bool.self, forKey: .noConsecutive) ?? false
+            maxConsecutiveRun = legacyNoConsecutive ? 1 : 0
+        }
+        excludedCharacters = try container.decodeIfPresent(String.self, forKey: .excludedCharacters) ?? Self.defaultSettings.excludedCharacters
         theme = try container.decodeIfPresent(NativeTheme.self, forKey: .theme) ?? Self.defaultSettings.theme
     }
 
@@ -1374,8 +1783,20 @@ struct NativePasswordSettings: Codable {
         try container.encode(symbols, forKey: .symbols)
         try container.encode(length, forKey: .length)
         try container.encode(count, forKey: .count)
+        try container.encode(minimumUppercase, forKey: .minimumUppercase)
+        try container.encode(minimumLowercase, forKey: .minimumLowercase)
+        try container.encode(minimumDigits, forKey: .minimumDigits)
+        try container.encode(minimumSymbols, forKey: .minimumSymbols)
         try container.encode(excludeSimilar, forKey: .excludeSimilar)
-        try container.encode(noConsecutive, forKey: .noConsecutive)
+        try container.encode(equalizeCharacterRatios, forKey: .equalizeCharacterRatios)
+        try container.encode(allowUppercaseFirst, forKey: .allowUppercaseFirst)
+        try container.encode(allowLowercaseFirst, forKey: .allowLowercaseFirst)
+        try container.encode(allowDigitsFirst, forKey: .allowDigitsFirst)
+        try container.encode(allowSymbolsFirst, forKey: .allowSymbolsFirst)
+        try container.encode(firstCharacterMode, forKey: .firstCharacterMode)
+        try container.encode(fixedPrefix, forKey: .fixedPrefix)
+        try container.encode(maxConsecutiveRun, forKey: .maxConsecutiveRun)
+        try container.encode(excludedCharacters, forKey: .excludedCharacters)
         try container.encode(theme, forKey: .theme)
     }
 }
@@ -1546,6 +1967,7 @@ private struct NativePasswordRow: View {
 private struct FlowCharacterText: View {
     let characters: [String]
     let selectedCharacters: Set<String>
+    let excludedCharacters: Set<String>
     let selectedColor: Color
     let unselectedColor: Color
 
@@ -1560,9 +1982,13 @@ private struct FlowCharacterText: View {
 
         for (index, character) in characters.enumerated() {
             let isSelected = selectedCharacters.contains(character)
+            let isExcluded = excludedCharacters.contains(character)
             var segment = AttributedString(character)
             segment.font = .system(size: 12, weight: isSelected ? .bold : .regular, design: .monospaced)
-            segment.foregroundColor = isSelected ? selectedColor : unselectedColor
+            segment.foregroundColor = isExcluded ? unselectedColor : (isSelected ? selectedColor : unselectedColor)
+            if isExcluded {
+                segment.inlinePresentationIntent = .strikethrough
+            }
             result.append(segment)
 
             if index != characters.count - 1 {
@@ -1665,6 +2091,22 @@ enum NativeCharacterTab: String, CaseIterable, Identifiable {
         }
     }
 
+}
+
+enum NativeFirstCharacterMode: String, CaseIterable, Codable, Identifiable {
+    case characterSet
+    case fixedPrefix
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .characterSet:
+            return "文字種"
+        case .fixedPrefix:
+            return "固定文字"
+        }
+    }
 }
 
 enum NativeTheme: String, CaseIterable, Codable, Identifiable {
