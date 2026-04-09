@@ -563,8 +563,8 @@ struct NativePasswordGeneratorView: View {
                 settingChip(title: "似た文字を除外する", selected: viewModel.settings.excludeSimilar, palette: palette) {
                     viewModel.toggleExcludeSimilar()
                 }
-                settingChip(title: "文字種をなるべく均等にする", selected: viewModel.settings.equalizeCharacterRatios, palette: palette, isEnabled: viewModel.usesRulePriorityMode) {
-                    viewModel.toggleEqualizeCharacterRatios()
+                settingChip(title: "選択した文字種を必ず含める", selected: viewModel.settings.requireEachSelectedType, palette: palette, isEnabled: viewModel.usesRulePriorityMode) {
+                    viewModel.toggleRequireEachSelectedType()
                 }
                 settingChip(title: "同じ文字を連続させない", selected: viewModel.disallowConsecutiveDuplicates, palette: palette, isEnabled: viewModel.usesRulePriorityMode) {
                     viewModel.toggleDisallowConsecutiveDuplicates()
@@ -1033,8 +1033,8 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         persistSettings()
     }
 
-    func toggleEqualizeCharacterRatios() {
-        settings.equalizeCharacterRatios.toggle()
+    func toggleRequireEachSelectedType() {
+        settings.requireEachSelectedType.toggle()
         persistSettings()
     }
 
@@ -1210,6 +1210,26 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
 
         let activePoolIDs = Set(pools.map(\.id))
+        if settings.requireEachSelectedType {
+            let remainingSlots: Int
+            let coveredPoolIDs: Set<String>
+
+            switch settings.firstCharacterMode {
+            case .characterSet:
+                remainingSlots = settings.length
+                coveredPoolIDs = []
+            case .fixedPrefix:
+                let prefixCharacters = settings.fixedPrefix.map(String.init)
+                remainingSlots = settings.length - prefixCharacters.count
+                coveredPoolIDs = Set(prefixCharacters.compactMap { Self.poolID(for: $0, in: pools) })
+            }
+
+            let requiredAdditionalPoolCount = activePoolIDs.subtracting(coveredPoolIDs).count
+            if remainingSlots < requiredAdditionalPoolCount {
+                return "現在の文字数では、選択した文字種をすべて含められません。"
+            }
+        }
+
         switch settings.firstCharacterMode {
         case .characterSet:
             let allowedFirstPoolIDs = Self.allowedFirstPoolIDs(using: settings).intersection(activePoolIDs)
@@ -1364,29 +1384,30 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             return try await createUniformPassword(from: allCharacters, length: settings.length)
         }
 
+        let requiresEachSelectedType = settings.requireEachSelectedType
+        let usesFirstCharacterRestriction = settings.firstCharacterMode == .characterSet
+        let usesConsecutiveLimit = settings.maxConsecutiveRun > 0
         let prefixCharacters = settings.firstCharacterMode == .fixedPrefix ? settings.fixedPrefix.map(String.init) : []
-        let targetCountMap = settings.equalizeCharacterRatios
-            ? try buildTargetCountMap(pools: pools, length: settings.length)
+        let targetCountMap = requiresEachSelectedType
+            ? buildRequiredPoolCountMap(pools: pools)
             : nil
-        let resolvedAllowedFirstPoolIDs: Set<String>
-        switch settings.firstCharacterMode {
-        case .characterSet:
-            resolvedAllowedFirstPoolIDs = Self.allowedFirstPoolIDs(using: settings).intersection(Set(pools.map(\.id)))
-        case .fixedPrefix:
-            resolvedAllowedFirstPoolIDs = Set(pools.map(\.id))
-        }
+        let resolvedAllowedFirstPoolIDs = usesFirstCharacterRestriction
+            ? Self.allowedFirstPoolIDs(using: settings).intersection(Set(pools.map(\.id)))
+            : Set<String>()
         let maximumConsecutiveRun = settings.maxConsecutiveRun
-        var currentCountMap = Dictionary(uniqueKeysWithValues: pools.map { ($0.id, 0) })
+        var currentCountMap = requiresEachSelectedType ? Dictionary(uniqueKeysWithValues: pools.map { ($0.id, 0) }) : [:]
         var passwordCharacters: [String] = prefixCharacters
         var previousCharacter = prefixCharacters.last ?? ""
-        var consecutiveCount = Self.longestTrailingRun(in: prefixCharacters)
+        var consecutiveCount = usesConsecutiveLimit ? Self.longestTrailingRun(in: prefixCharacters) : 0
         var iterationsSinceYield = 0
 
-        for character in prefixCharacters {
-            guard let poolID = Self.poolID(for: character, in: pools) else {
-                throw NativeGenerationError.unavailableCharacters
+        if requiresEachSelectedType {
+            for character in prefixCharacters {
+                guard let poolID = Self.poolID(for: character, in: pools) else {
+                    throw NativeGenerationError.unavailableCharacters
+                }
+                currentCountMap[poolID, default: 0] += 1
             }
-            currentCountMap[poolID, default: 0] += 1
         }
 
         while passwordCharacters.count < settings.length {
@@ -1400,7 +1421,9 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                 previousCharacter: previousCharacter,
                 consecutiveCount: consecutiveCount,
                 allowedFirstPoolIDs: resolvedAllowedFirstPoolIDs,
-                isFirstCharacter: passwordCharacters.count == prefixCharacters.count && prefixCharacters.isEmpty
+                isFirstCharacter: passwordCharacters.count == prefixCharacters.count && prefixCharacters.isEmpty,
+                restrictFirstCharacter: usesFirstCharacterRestriction,
+                restrictConsecutiveDuplicates: usesConsecutiveLimit
             )
 
             let selectedPoolIndex = try randomInt(upperBound: candidatePools.count)
@@ -1416,13 +1439,17 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             }
 
             passwordCharacters.append(character)
-            currentCountMap[pool.id, default: 0] += 1
+            if requiresEachSelectedType {
+                currentCountMap[pool.id, default: 0] += 1
+            }
 
-            if character == previousCharacter {
-                consecutiveCount += 1
-            } else {
-                previousCharacter = character
-                consecutiveCount = 1
+            if usesConsecutiveLimit {
+                if character == previousCharacter {
+                    consecutiveCount += 1
+                } else {
+                    previousCharacter = character
+                    consecutiveCount = 1
+                }
             }
             iterationsSinceYield += 1
 
@@ -1555,19 +1582,29 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         previousCharacter: String,
         consecutiveCount: Int,
         allowedFirstPoolIDs: Set<String>,
-        isFirstCharacter: Bool
+        isFirstCharacter: Bool,
+        restrictFirstCharacter: Bool,
+        restrictConsecutiveDuplicates: Bool
     ) throws -> [NativeCharacterPool] {
-        let firstCharacterFilteredPools = pools.filter { pool in
-            !isFirstCharacter || allowedFirstPoolIDs.contains(pool.id)
+        let firstCharacterFilteredPools: [NativeCharacterPool]
+        if restrictFirstCharacter && isFirstCharacter {
+            firstCharacterFilteredPools = pools.filter { allowedFirstPoolIDs.contains($0.id) }
+        } else {
+            firstCharacterFilteredPools = pools
         }
 
-        let validAllPools = firstCharacterFilteredPools.filter {
-            hasAvailableCharacter(
-                in: $0.characters,
-                previousCharacter: previousCharacter,
-                consecutiveCount: consecutiveCount,
-                maximumConsecutiveRun: maximumConsecutiveRun
-            )
+        let validAllPools: [NativeCharacterPool]
+        if restrictConsecutiveDuplicates {
+            validAllPools = firstCharacterFilteredPools.filter {
+                hasAvailableCharacter(
+                    in: $0.characters,
+                    previousCharacter: previousCharacter,
+                    consecutiveCount: consecutiveCount,
+                    maximumConsecutiveRun: maximumConsecutiveRun
+                )
+            }
+        } else {
+            validAllPools = firstCharacterFilteredPools
         }
 
         guard !validAllPools.isEmpty else {
@@ -1596,19 +1633,21 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             sourcePools = validAllPools
         }
 
-        let validPools = sourcePools.filter {
-            hasAvailableCharacter(
-                in: $0.characters,
-                previousCharacter: previousCharacter,
-                consecutiveCount: consecutiveCount,
-                maximumConsecutiveRun: maximumConsecutiveRun
-            )
-        }
-        if !validPools.isEmpty {
-            return validPools
+        if restrictConsecutiveDuplicates {
+            let validPools = sourcePools.filter {
+                hasAvailableCharacter(
+                    in: $0.characters,
+                    previousCharacter: previousCharacter,
+                    consecutiveCount: consecutiveCount,
+                    maximumConsecutiveRun: maximumConsecutiveRun
+                )
+            }
+            if !validPools.isEmpty {
+                return validPools
+            }
         }
 
-        return validAllPools
+        return sourcePools
     }
 
     private static func hasAvailableCharacter(in characters: [String], previousCharacter: String, consecutiveCount: Int, maximumConsecutiveRun: Int) -> Bool {
@@ -1649,29 +1688,8 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         return allowedPoolIDs
     }
 
-    private static func buildTargetCountMap(
-        pools: [NativeCharacterPool],
-        length: Int
-    ) throws -> [String: Int] {
-        guard !pools.isEmpty else {
-            throw NativeGenerationError.unavailableCharacters
-        }
-
-        var targetCountMap = Dictionary(uniqueKeysWithValues: pools.map { ($0.id, 0) })
-        var remainingSlots = length
-
-        while remainingSlots > 0 {
-            let minimumTarget = targetCountMap.values.min() ?? 0
-            let candidateIDs = targetCountMap.compactMap { entry in
-                entry.value == minimumTarget ? entry.key : nil
-            }
-            let selectedIndex = try randomInt(upperBound: candidateIDs.count)
-            let selectedID = candidateIDs[selectedIndex]
-            targetCountMap[selectedID, default: 0] += 1
-            remainingSlots -= 1
-        }
-
-        return targetCountMap
+    private static func buildRequiredPoolCountMap(pools: [NativeCharacterPool]) -> [String: Int] {
+        Dictionary(uniqueKeysWithValues: pools.map { ($0.id, 1) })
     }
 
     private static func randomInt(upperBound: Int) throws -> Int {
@@ -1717,7 +1735,7 @@ struct NativePasswordSettings: Codable {
     var minimumSymbols: Int
     var generationMode: NativeGenerationMode
     var excludeSimilar: Bool
-    var equalizeCharacterRatios: Bool
+    var requireEachSelectedType: Bool
     var allowUppercaseFirst: Bool
     var allowLowercaseFirst: Bool
     var allowDigitsFirst: Bool
@@ -1746,7 +1764,7 @@ struct NativePasswordSettings: Codable {
         minimumSymbols: 25,
         generationMode: .rulePriority,
         excludeSimilar: true,
-        equalizeCharacterRatios: false,
+        requireEachSelectedType: false,
         allowUppercaseFirst: true,
         allowLowercaseFirst: true,
         allowDigitsFirst: true,
@@ -1776,6 +1794,7 @@ struct NativePasswordSettings: Codable {
         case minimumSymbols
         case generationMode
         case excludeSimilar
+        case requireEachSelectedType
         case equalizeCharacterRatios
         case allowUppercaseFirst
         case allowLowercaseFirst
@@ -1807,7 +1826,7 @@ struct NativePasswordSettings: Codable {
         minimumSymbols: Int,
         generationMode: NativeGenerationMode,
         excludeSimilar: Bool,
-        equalizeCharacterRatios: Bool,
+        requireEachSelectedType: Bool,
         allowUppercaseFirst: Bool,
         allowLowercaseFirst: Bool,
         allowDigitsFirst: Bool,
@@ -1835,7 +1854,7 @@ struct NativePasswordSettings: Codable {
         self.minimumSymbols = minimumSymbols
         self.generationMode = generationMode
         self.excludeSimilar = excludeSimilar
-        self.equalizeCharacterRatios = equalizeCharacterRatios
+        self.requireEachSelectedType = requireEachSelectedType
         self.allowUppercaseFirst = allowUppercaseFirst
         self.allowLowercaseFirst = allowLowercaseFirst
         self.allowDigitsFirst = allowDigitsFirst
@@ -1867,7 +1886,13 @@ struct NativePasswordSettings: Codable {
         minimumSymbols = try container.decodeIfPresent(Int.self, forKey: .minimumSymbols) ?? (includeSymbols ? 25 : 0)
         generationMode = try container.decodeIfPresent(NativeGenerationMode.self, forKey: .generationMode) ?? Self.defaultSettings.generationMode
         excludeSimilar = try container.decodeIfPresent(Bool.self, forKey: .excludeSimilar) ?? Self.defaultSettings.excludeSimilar
-        equalizeCharacterRatios = try container.decodeIfPresent(Bool.self, forKey: .equalizeCharacterRatios) ?? Self.defaultSettings.equalizeCharacterRatios
+        if let decodedRequireEachSelectedType = try container.decodeIfPresent(Bool.self, forKey: .requireEachSelectedType) {
+            requireEachSelectedType = decodedRequireEachSelectedType
+        } else if let legacyEqualizeCharacterRatios = try container.decodeIfPresent(Bool.self, forKey: .equalizeCharacterRatios) {
+            requireEachSelectedType = legacyEqualizeCharacterRatios
+        } else {
+            requireEachSelectedType = Self.defaultSettings.requireEachSelectedType
+        }
         allowUppercaseFirst = try container.decodeIfPresent(Bool.self, forKey: .allowUppercaseFirst) ?? Self.defaultSettings.allowUppercaseFirst
         allowLowercaseFirst = try container.decodeIfPresent(Bool.self, forKey: .allowLowercaseFirst) ?? Self.defaultSettings.allowLowercaseFirst
         allowDigitsFirst = try container.decodeIfPresent(Bool.self, forKey: .allowDigitsFirst) ?? Self.defaultSettings.allowDigitsFirst
@@ -1904,7 +1929,7 @@ struct NativePasswordSettings: Codable {
         try container.encode(minimumSymbols, forKey: .minimumSymbols)
         try container.encode(generationMode, forKey: .generationMode)
         try container.encode(excludeSimilar, forKey: .excludeSimilar)
-        try container.encode(equalizeCharacterRatios, forKey: .equalizeCharacterRatios)
+        try container.encode(requireEachSelectedType, forKey: .requireEachSelectedType)
         try container.encode(allowUppercaseFirst, forKey: .allowUppercaseFirst)
         try container.encode(allowLowercaseFirst, forKey: .allowLowercaseFirst)
         try container.encode(allowDigitsFirst, forKey: .allowDigitsFirst)
@@ -2243,9 +2268,9 @@ enum NativeGenerationMode: String, CaseIterable, Codable, Identifiable {
     var tip: String {
         switch self {
         case .completeUniform:
-            return "SecRandomCopyBytes と拒否サンプリングを使い、選択した文字集合から各位置を独立に一様抽選します。似た文字の除外は反映されますが、均等化・連続禁止・先頭文字設定は使用しません。"
+            return "SecRandomCopyBytes と拒否サンプリングを使い、選択した文字集合から各位置を独立に一様抽選します。似た文字の除外は反映されますが、文字種必須・連続禁止・先頭文字設定は使用しません。"
         case .rulePriority:
-            return "先頭文字設定、文字種の均等化、同じ文字の連続禁止などの生成ルールを優先します。サービス要件に合わせやすい一方、候補全体に対する完全一様ではありません。"
+            return "選択した文字種を必ず含める、先頭文字設定、同じ文字の連続禁止などの生成ルールを優先します。サービス要件に合わせやすい一方、候補全体に対する完全一様ではありません。"
         }
     }
 }
