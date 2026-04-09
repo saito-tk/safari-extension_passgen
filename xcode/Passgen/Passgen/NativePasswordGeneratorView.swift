@@ -550,14 +550,23 @@ struct NativePasswordGeneratorView: View {
         VStack(alignment: .leading, spacing: 14) {
             sectionHeader(title: "生成ルール")
 
+            VStack(alignment: .leading, spacing: 10) {
+                Text("生成方式")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+
+                generationModeBar(palette: palette)
+                generationModeTip(palette: palette)
+            }
+
             HStack(spacing: 10) {
                 settingChip(title: "似た文字を除外する", selected: viewModel.settings.excludeSimilar, palette: palette) {
                     viewModel.toggleExcludeSimilar()
                 }
-                settingChip(title: "文字種をなるべく均等にする", selected: viewModel.settings.equalizeCharacterRatios, palette: palette) {
+                settingChip(title: "文字種をなるべく均等にする", selected: viewModel.settings.equalizeCharacterRatios, palette: palette, isEnabled: viewModel.usesRulePriorityMode) {
                     viewModel.toggleEqualizeCharacterRatios()
                 }
-                settingChip(title: "同じ文字を連続させない", selected: viewModel.disallowConsecutiveDuplicates, palette: palette) {
+                settingChip(title: "同じ文字を連続させない", selected: viewModel.disallowConsecutiveDuplicates, palette: palette, isEnabled: viewModel.usesRulePriorityMode) {
                     viewModel.toggleDisallowConsecutiveDuplicates()
                 }
             }
@@ -596,6 +605,8 @@ struct NativePasswordGeneratorView: View {
                     .disabled(viewModel.isGenerating)
                 }
             }
+            .opacity(viewModel.usesRulePriorityMode ? 1 : 0.56)
+            .disabled(!viewModel.usesRulePriorityMode || viewModel.isGenerating)
         }
         .padding(16)
         .nativeCardStyle(palette: palette)
@@ -655,6 +666,57 @@ struct NativePasswordGeneratorView: View {
                 .disabled(viewModel.isGenerating)
             }
         }
+    }
+
+    private func generationModeBar(palette: NativeThemePalette) -> some View {
+        HStack(spacing: 8) {
+            ForEach(NativeGenerationMode.allCases) { mode in
+                let isSelected = viewModel.settings.generationMode == mode
+
+                Button {
+                    viewModel.selectGenerationMode(mode)
+                } label: {
+                    Text(mode.title)
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                        .foregroundStyle(isSelected ? palette.accentStrong : palette.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(isSelected ? palette.accent.opacity(0.14) : Color.white.opacity(0.82))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(isSelected ? palette.accent.opacity(0.34) : palette.panelBorder, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isGenerating)
+            }
+        }
+    }
+
+    private func generationModeTip(palette: NativeThemePalette) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Tips")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(palette.muted)
+
+            Text(viewModel.settings.generationMode.tip)
+                .font(.system(size: 11))
+                .foregroundStyle(palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.72))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(palette.panelBorder, lineWidth: 1)
+        )
     }
 
     private func themeCard(palette: NativeThemePalette) -> some View {
@@ -776,6 +838,7 @@ struct NativePasswordGeneratorView: View {
         title: String,
         selected: Bool,
         palette: NativeThemePalette,
+        isEnabled: Bool = true,
         fullWidth: Bool = false,
         compact: Bool = false,
         action: @escaping () -> Void
@@ -796,7 +859,8 @@ struct NativePasswordGeneratorView: View {
                 )
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.isGenerating)
+        .disabled(viewModel.isGenerating || !isEnabled)
+        .opacity(isEnabled ? 1 : 0.56)
         .frame(maxWidth: fullWidth ? .infinity : nil)
         .fixedSize(horizontal: compact, vertical: false)
     }
@@ -871,6 +935,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     var canApplyImportedSymbols: Bool {
         !symbolImportText.isEmpty && !isGenerating
+    }
+
+    var usesRulePriorityMode: Bool {
+        settings.generationMode == .rulePriority
     }
 
     var progressText: String {
@@ -952,6 +1020,11 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     func selectFirstCharacterMode(_ mode: NativeFirstCharacterMode) {
         settings.firstCharacterMode = mode
+        persistSettings()
+    }
+
+    func selectGenerationMode(_ mode: NativeGenerationMode) {
+        settings.generationMode = mode
         persistSettings()
     }
 
@@ -1132,6 +1205,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             return "選択した条件で使える文字がありません。設定を見直してください。"
         }
 
+        if settings.generationMode == .completeUniform {
+            return nil
+        }
+
         let activePoolIDs = Set(pools.map(\.id))
         switch settings.firstCharacterMode {
         case .characterSet:
@@ -1281,11 +1358,16 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     private static func createPassword(using settings: NativePasswordSettings) async throws -> NativeGeneratedPassword {
         let pools = buildPools(using: settings)
+        let allCharacters = combinePools(pools)
+
+        if settings.generationMode == .completeUniform {
+            return try await createUniformPassword(from: allCharacters, length: settings.length)
+        }
+
         let prefixCharacters = settings.firstCharacterMode == .fixedPrefix ? settings.fixedPrefix.map(String.init) : []
         let targetCountMap = settings.equalizeCharacterRatios
             ? try buildTargetCountMap(pools: pools, length: settings.length)
             : nil
-        let allCharacters = combinePools(pools)
         let resolvedAllowedFirstPoolIDs: Set<String>
         switch settings.firstCharacterMode {
         case .characterSet:
@@ -1355,6 +1437,33 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             value: password,
             entropy: estimateEntropy(charsetSize: allCharacters.count, length: settings.length),
             charsetSize: allCharacters.count
+        )
+    }
+
+    private static func createUniformPassword(from characters: [String], length: Int) async throws -> NativeGeneratedPassword {
+        guard !characters.isEmpty else {
+            throw NativeGenerationError.unavailableCharacters
+        }
+
+        var passwordCharacters: [String] = []
+        passwordCharacters.reserveCapacity(length)
+        var iterationsSinceYield = 0
+
+        while passwordCharacters.count < length {
+            passwordCharacters.append(characters[try randomInt(upperBound: characters.count)])
+            iterationsSinceYield += 1
+
+            if iterationsSinceYield >= nativePasswordYieldInterval {
+                iterationsSinceYield = 0
+                await Task.yield()
+            }
+        }
+
+        let password = passwordCharacters.joined()
+        return NativeGeneratedPassword(
+            value: password,
+            entropy: estimateEntropy(charsetSize: characters.count, length: length),
+            charsetSize: characters.count
         )
     }
 
@@ -1606,6 +1715,7 @@ struct NativePasswordSettings: Codable {
     var minimumLowercase: Int
     var minimumDigits: Int
     var minimumSymbols: Int
+    var generationMode: NativeGenerationMode
     var excludeSimilar: Bool
     var equalizeCharacterRatios: Bool
     var allowUppercaseFirst: Bool
@@ -1634,6 +1744,7 @@ struct NativePasswordSettings: Codable {
         minimumLowercase: 25,
         minimumDigits: 25,
         minimumSymbols: 25,
+        generationMode: .rulePriority,
         excludeSimilar: true,
         equalizeCharacterRatios: false,
         allowUppercaseFirst: true,
@@ -1663,6 +1774,7 @@ struct NativePasswordSettings: Codable {
         case minimumLowercase
         case minimumDigits
         case minimumSymbols
+        case generationMode
         case excludeSimilar
         case equalizeCharacterRatios
         case allowUppercaseFirst
@@ -1693,6 +1805,7 @@ struct NativePasswordSettings: Codable {
         minimumLowercase: Int,
         minimumDigits: Int,
         minimumSymbols: Int,
+        generationMode: NativeGenerationMode,
         excludeSimilar: Bool,
         equalizeCharacterRatios: Bool,
         allowUppercaseFirst: Bool,
@@ -1720,6 +1833,7 @@ struct NativePasswordSettings: Codable {
         self.minimumLowercase = minimumLowercase
         self.minimumDigits = minimumDigits
         self.minimumSymbols = minimumSymbols
+        self.generationMode = generationMode
         self.excludeSimilar = excludeSimilar
         self.equalizeCharacterRatios = equalizeCharacterRatios
         self.allowUppercaseFirst = allowUppercaseFirst
@@ -1751,6 +1865,7 @@ struct NativePasswordSettings: Codable {
         minimumLowercase = try container.decodeIfPresent(Int.self, forKey: .minimumLowercase) ?? (lowercase ? 25 : 0)
         minimumDigits = try container.decodeIfPresent(Int.self, forKey: .minimumDigits) ?? (digits ? 25 : 0)
         minimumSymbols = try container.decodeIfPresent(Int.self, forKey: .minimumSymbols) ?? (includeSymbols ? 25 : 0)
+        generationMode = try container.decodeIfPresent(NativeGenerationMode.self, forKey: .generationMode) ?? Self.defaultSettings.generationMode
         excludeSimilar = try container.decodeIfPresent(Bool.self, forKey: .excludeSimilar) ?? Self.defaultSettings.excludeSimilar
         equalizeCharacterRatios = try container.decodeIfPresent(Bool.self, forKey: .equalizeCharacterRatios) ?? Self.defaultSettings.equalizeCharacterRatios
         allowUppercaseFirst = try container.decodeIfPresent(Bool.self, forKey: .allowUppercaseFirst) ?? Self.defaultSettings.allowUppercaseFirst
@@ -1787,6 +1902,7 @@ struct NativePasswordSettings: Codable {
         try container.encode(minimumLowercase, forKey: .minimumLowercase)
         try container.encode(minimumDigits, forKey: .minimumDigits)
         try container.encode(minimumSymbols, forKey: .minimumSymbols)
+        try container.encode(generationMode, forKey: .generationMode)
         try container.encode(excludeSimilar, forKey: .excludeSimilar)
         try container.encode(equalizeCharacterRatios, forKey: .equalizeCharacterRatios)
         try container.encode(allowUppercaseFirst, forKey: .allowUppercaseFirst)
@@ -2105,6 +2221,31 @@ enum NativeFirstCharacterMode: String, CaseIterable, Codable, Identifiable {
             return "文字種"
         case .fixedPrefix:
             return "固定文字"
+        }
+    }
+}
+
+enum NativeGenerationMode: String, CaseIterable, Codable, Identifiable {
+    case completeUniform
+    case rulePriority
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .completeUniform:
+            return "完全一様"
+        case .rulePriority:
+            return "ルール優先"
+        }
+    }
+
+    var tip: String {
+        switch self {
+        case .completeUniform:
+            return "SecRandomCopyBytes と拒否サンプリングを使い、選択した文字集合から各位置を独立に一様抽選します。似た文字の除外は反映されますが、均等化・連続禁止・先頭文字設定は使用しません。"
+        case .rulePriority:
+            return "先頭文字設定、文字種の均等化、同じ文字の連続禁止などの生成ルールを優先します。サービス要件に合わせやすい一方、候補全体に対する完全一様ではありません。"
         }
     }
 }
