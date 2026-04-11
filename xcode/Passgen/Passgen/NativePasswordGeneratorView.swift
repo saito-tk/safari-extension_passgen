@@ -48,7 +48,8 @@ private let nativeSettingsStorageKey = "nativePassgenSettings"
 private let nativeMinPasswordLength = 4
 private let nativeMaxPasswordLength = 999_999
 private let nativeMinPasswordCount = 1
-private let nativeMaxPasswordCount = 30
+private let nativeMaxPasswordCount = 1000
+private let nativeMaxGeneratedCharacters = nativeMaxPasswordLength * 10
 private let nativePasswordYieldInterval = 2_048
 private let nativeMaxConsecutiveRunLimit = 99
 private let uppercaseCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -798,7 +799,13 @@ struct NativePasswordGeneratorView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
                         ForEach(viewModel.results) { password in
-                            NativePasswordRow(password: password, palette: palette)
+                            NativePasswordRow(
+                                password: password,
+                                palette: palette,
+                                previewLineLength: isSavedSettingsSidebarVisible ? 40 : 52
+                            ) {
+                                viewModel.copyPassword(id: password.id)
+                            }
                         }
                     }
                     .padding(.trailing, 4)
@@ -907,13 +914,14 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var symbolImportText = ""
     @Published var settingsStatus = NativeInlineStatus()
     @Published var resultStatus = NativeInlineStatus()
-    @Published var results: [NativeGeneratedPassword] = []
+    @Published var results: [NativeGeneratedPasswordListItem] = []
     @Published var progressCompleted = 0
     @Published var progressTotal = 0
     @Published var isGenerating = false
 
     private var generationTask: Task<Void, Never>?
     private var isRestoringSettings = true
+    private var generatedPasswordStore: [UUID: String] = [:]
 
     init() {
         let restoredSettings = Self.restoreSettings()
@@ -1053,7 +1061,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func updateFixedPrefix(_ value: String) {
-        settings.fixedPrefix = value
+        settings.fixedPrefix = Self.sanitizeSingleLineText(value)
         persistSettings()
     }
 
@@ -1142,6 +1150,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             settingsStatus = NativeInlineStatus(message: validationMessage, tone: .error)
             resultStatus = NativeInlineStatus()
             results = []
+            generatedPasswordStore = [:]
             progressCompleted = 0
             progressTotal = 0
             return
@@ -1149,6 +1158,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
         generationTask?.cancel()
         results = []
+        generatedPasswordStore = [:]
         progressCompleted = 0
         progressTotal = settings.count
         isGenerating = true
@@ -1164,9 +1174,11 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                 for index in 0..<snapshot.count {
                     try Task.checkCancellation()
                     let password = try await Self.createPassword(using: snapshot)
+                    let listItem = NativeGeneratedPasswordListItem(password: password)
 
                     await MainActor.run {
-                        self.results.append(password)
+                        self.results.append(listItem)
+                        self.generatedPasswordStore[listItem.id] = password.value
                         self.progressCompleted = index + 1
                     }
 
@@ -1181,14 +1193,24 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             } catch is CancellationError {
                 await MainActor.run {
                     self.isGenerating = false
+                    self.generatedPasswordStore = [:]
                 }
             } catch {
                 await MainActor.run {
                     self.isGenerating = false
+                    self.generatedPasswordStore = [:]
                     self.resultStatus = NativeInlineStatus(message: "条件に合うパスワードを生成できませんでした。", tone: .error)
                 }
             }
         }
+    }
+
+    func copyPassword(id: UUID) {
+        guard let value = generatedPasswordStore[id] else {
+            return
+        }
+
+        copyToPasteboard(value)
     }
 
     private func validateSettings() -> String? {
@@ -1351,8 +1373,13 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             normalizedSettings.digitSelections = Array(repeating: true, count: digitCharacters.count)
         }
 
+        normalizedSettings.fixedPrefix = sanitizeSingleLineText(normalizedSettings.fixedPrefix)
         normalizedSettings.selectAllSymbols = normalizedSettings.symbols.contains(true) && normalizedSettings.symbols.allSatisfy(\.self)
         return normalizedSettings
+    }
+
+    private static func sanitizeSingleLineText(_ value: String) -> String {
+        value.components(separatedBy: .newlines).joined()
     }
 
     private static func sanitizeNumber(_ value: String, fallback: Int) -> Int {
@@ -1365,7 +1392,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     private static func getMaxCountForLength(_ length: Int) -> Int {
         let normalizedLength = clampNumber(length, minimum: nativeMinPasswordLength, maximum: nativeMaxPasswordLength)
-        return max(nativeMinPasswordCount, min(nativeMaxPasswordCount, nativeMaxPasswordLength / normalizedLength))
+        return max(nativeMinPasswordCount, min(nativeMaxPasswordCount, nativeMaxGeneratedCharacters / normalizedLength))
     }
 
     private static func lengthCorrectionMessage(_ normalizedLength: Int) -> String {
@@ -1947,25 +1974,25 @@ struct NativeGeneratedPassword: Identifiable {
     let value: String
     let entropy: Double
     let charsetSize: Int
+}
 
-    var analysis: NativePasswordAnalysis {
-        NativePasswordAnalysis(password: value, entropy: entropy, charsetSize: charsetSize)
-    }
+struct NativeGeneratedPasswordListItem: Identifiable {
+    let id: UUID
+    let displayValue: String
+    let note: String
+    let analysis: NativePasswordAnalysis
 
-    var displayValue: String {
-        if value.count <= 100 {
-            return value
+    nonisolated init(password: NativeGeneratedPassword) {
+        id = password.id
+        if password.value.count <= 100 {
+            displayValue = password.value
+            note = ""
+        } else {
+            displayValue = String(password.value.prefix(100)) + "..."
+            note = "表示は先頭 \(formatNumber(100)) 文字までです。実際の文字数は \(formatNumber(password.value.count)) 文字です。"
         }
 
-        return String(value.prefix(100)) + "..."
-    }
-
-    var note: String {
-        guard value.count > 100 else {
-            return ""
-        }
-
-        return "表示は先頭 \(formatNumber(100)) 文字までです。実際の文字数は \(formatNumber(value.count)) 文字です。"
+        analysis = NativePasswordAnalysis(password: password.value, entropy: password.entropy, charsetSize: password.charsetSize)
     }
 }
 
@@ -1978,7 +2005,7 @@ struct NativePasswordAnalysis {
     let balance: Double
     let warnings: [String]
 
-    init(password: String, entropy: Double, charsetSize: Int) {
+    nonisolated init(password: String, entropy: Double, charsetSize: Int) {
         let actualDistinctCount = getDistinctCharacterCount(password)
         let expectedDistinctCount = getExpectedDistinctCount(charsetSize: charsetSize, length: password.count)
         let variety = min(1, Double(actualDistinctCount) / max(expectedDistinctCount, 1))
@@ -2013,14 +2040,16 @@ struct NativePasswordAnalysis {
 }
 
 private struct NativePasswordRow: View {
-    let password: NativeGeneratedPassword
+    let password: NativeGeneratedPasswordListItem
     let palette: NativeThemePalette
+    let previewLineLength: Int
+    let onCopy: () -> Void
     @State private var isCopied = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(password.displayValue)
+                Text(wrapPasswordPreview(password.displayValue, lineLength: previewLineLength))
                     .font(.system(size: 13, weight: .semibold, design: .monospaced))
                     .foregroundStyle(palette.ink)
                     .textSelection(.enabled)
@@ -2066,7 +2095,7 @@ private struct NativePasswordRow: View {
 
             VStack(spacing: 6) {
                 Button {
-                    copyToPasteboard(password.value)
+                    onCopy()
                     isCopied = true
 
                     Task {
@@ -2482,13 +2511,38 @@ private func copyToPasteboard(_ text: String) {
     pasteboard.setString(text, forType: .string)
 }
 
-private func formatNumber<T: BinaryInteger>(_ value: T) -> String {
+private nonisolated func wrapPasswordPreview(_ text: String, lineLength: Int = 40) -> String {
+    guard lineLength > 0, text.count > lineLength else {
+        return text
+    }
+
+    var wrappedLines: [String] = []
+    var currentLine = ""
+    currentLine.reserveCapacity(lineLength)
+
+    for character in text {
+        currentLine.append(character)
+
+        if currentLine.count == lineLength {
+            wrappedLines.append(currentLine)
+            currentLine.removeAll(keepingCapacity: true)
+        }
+    }
+
+    if !currentLine.isEmpty {
+        wrappedLines.append(currentLine)
+    }
+
+    return wrappedLines.joined(separator: "\n")
+}
+
+private nonisolated func formatNumber<T: BinaryInteger>(_ value: T) -> String {
     let formatter = NumberFormatter()
     formatter.numberStyle = .decimal
     return formatter.string(from: NSNumber(value: Int(value))) ?? "\(value)"
 }
 
-private func formatNumber(_ value: Double) -> String {
+private nonisolated func formatNumber(_ value: Double) -> String {
     let formatter = NumberFormatter()
     formatter.numberStyle = .decimal
     formatter.maximumFractionDigits = 1
