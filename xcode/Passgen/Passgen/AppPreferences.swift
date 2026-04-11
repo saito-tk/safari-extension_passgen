@@ -33,8 +33,39 @@ enum AppPresentationMode: Int {
     }
 }
 
+enum AppAppearanceMode: Int {
+    case system
+    case light
+    case dark
+
+    static let storageKey = "appAppearanceMode"
+
+    var title: String {
+        switch self {
+        case .system:
+            "System"
+        case .light:
+            "Light"
+        case .dark:
+            "Dark"
+        }
+    }
+
+    var appearance: NSAppearance? {
+        switch self {
+        case .system:
+            nil
+        case .light:
+            NSAppearance(named: .aqua)
+        case .dark:
+            NSAppearance(named: .darkAqua)
+        }
+    }
+}
+
 extension Notification.Name {
     static let appPresentationModeDidChange = Notification.Name("AppPresentationModeDidChange")
+    static let appAppearanceModeDidChange = Notification.Name("AppAppearanceModeDidChange")
 }
 
 final class AppPreferences {
@@ -53,6 +84,20 @@ final class AppPreferences {
 
             UserDefaults.standard.set(newValue.rawValue, forKey: AppPresentationMode.storageKey)
             NotificationCenter.default.post(name: .appPresentationModeDidChange, object: newValue)
+        }
+    }
+
+    var appearanceMode: AppAppearanceMode {
+        get {
+            AppAppearanceMode(rawValue: UserDefaults.standard.integer(forKey: AppAppearanceMode.storageKey)) ?? .system
+        }
+        set {
+            guard appearanceMode != newValue else {
+                return
+            }
+
+            UserDefaults.standard.set(newValue.rawValue, forKey: AppAppearanceMode.storageKey)
+            NotificationCenter.default.post(name: .appAppearanceModeDidChange, object: newValue)
         }
     }
 }

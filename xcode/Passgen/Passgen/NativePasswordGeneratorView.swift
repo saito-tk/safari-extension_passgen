@@ -58,6 +58,7 @@ private let digitCharacters = "0123456789"
 
 struct NativePasswordGeneratorView: View {
     @StateObject var viewModel: NativePasswordGeneratorViewModel
+    @Environment(\.colorScheme) private var colorScheme
     @FocusState private var focusedField: NativeFocusedField?
     @State private var isSavedSettingsSidebarVisible = true
     @State private var activeCharacterTab: NativeCharacterTab = .uppercase
@@ -67,7 +68,7 @@ struct NativePasswordGeneratorView: View {
     }
 
     var body: some View {
-        let palette = viewModel.palette
+        let palette = viewModel.palette(for: colorScheme)
 
         ZStack {
             LinearGradient(colors: [palette.backgroundTop, palette.backgroundBottom], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -143,7 +144,7 @@ struct NativePasswordGeneratorView: View {
                 .padding(.vertical, 9)
                 .background(
                     Capsule()
-                        .fill(Color.white.opacity(0.74))
+                        .fill(palette.surface)
                 )
                 .overlay(
                     Capsule()
@@ -172,7 +173,7 @@ struct NativePasswordGeneratorView: View {
                     .padding(.vertical, 5)
                     .background(
                         Capsule()
-                            .fill(Color.white.opacity(0.7))
+                            .fill(palette.surfaceSoft)
                     )
             }
 
@@ -194,7 +195,7 @@ struct NativePasswordGeneratorView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white.opacity(0.78))
+                    .fill(palette.surface)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -283,7 +284,7 @@ struct NativePasswordGeneratorView: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white.opacity(0.72))
+                    .fill(palette.surfaceSoft)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -328,7 +329,7 @@ struct NativePasswordGeneratorView: View {
                         .padding(.vertical, 10)
                         .background(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(isSelected ? palette.accent.opacity(0.14) : Color.white.opacity(0.82))
+                                .fill(isSelected ? palette.accent.opacity(0.14) : palette.surface)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -371,7 +372,7 @@ struct NativePasswordGeneratorView: View {
         .padding(.bottom, 12)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.72))
+                .fill(palette.surfaceSoft)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -384,7 +385,7 @@ struct NativePasswordGeneratorView: View {
         let foregroundColor = isSelected ? Color.white : (viewModel.isGenerating ? palette.disabledText : palette.muted)
         let backgroundView: AnyShapeStyle = isSelected
             ? AnyShapeStyle(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .top, endPoint: .bottom))
-            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : Color.white.opacity(0.95))
+            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
         let borderColor = isSelected ? palette.accentStrong.opacity(0.92) : palette.panelBorder
 
         return Button {
@@ -417,7 +418,7 @@ struct NativePasswordGeneratorView: View {
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(viewModel.isGenerating ? palette.disabledBackground : Color.white.opacity(0.96))
+                        .fill(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -471,7 +472,7 @@ struct NativePasswordGeneratorView: View {
         .padding(.bottom, 12)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.72))
+                .fill(palette.surfaceSoft)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -507,7 +508,7 @@ struct NativePasswordGeneratorView: View {
         let foregroundColor = isSelected ? Color.white : (viewModel.isGenerating ? palette.disabledText : palette.muted)
         let backgroundView: AnyShapeStyle = isSelected
             ? AnyShapeStyle(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .top, endPoint: .bottom))
-            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : Color.white.opacity(0.95))
+            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
         let borderColor = isSelected ? palette.accentStrong.opacity(0.92) : palette.panelBorder
 
         return Button {
@@ -596,7 +597,7 @@ struct NativePasswordGeneratorView: View {
                     .padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(viewModel.isGenerating ? palette.disabledBackground : Color.white.opacity(0.96))
+                            .fill(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -618,7 +619,7 @@ struct NativePasswordGeneratorView: View {
         let foregroundColor = isSelected ? Color.white : (viewModel.isGenerating ? palette.disabledText : palette.muted)
         let backgroundView: AnyShapeStyle = isSelected
             ? AnyShapeStyle(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .top, endPoint: .bottom))
-            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : Color.white.opacity(0.95))
+            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
         let borderColor = isSelected ? palette.accentStrong.opacity(0.92) : palette.panelBorder
 
         return Button {
@@ -656,7 +657,7 @@ struct NativePasswordGeneratorView: View {
                         .padding(.vertical, 10)
                         .background(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(isSelected ? palette.accent.opacity(0.14) : Color.white.opacity(0.82))
+                                .fill(isSelected ? palette.accent.opacity(0.14) : palette.surface)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -684,7 +685,7 @@ struct NativePasswordGeneratorView: View {
                         .padding(.vertical, 10)
                         .background(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(isSelected ? palette.accent.opacity(0.14) : Color.white.opacity(0.82))
+                                .fill(isSelected ? palette.accent.opacity(0.14) : palette.surface)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -712,7 +713,7 @@ struct NativePasswordGeneratorView: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(0.72))
+                .fill(palette.surfaceSoft)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -736,7 +737,7 @@ struct NativePasswordGeneratorView: View {
 
             HStack(spacing: 10) {
                 ForEach(NativeTheme.allCases) { theme in
-                    let swatchPalette = theme.palette
+                    let swatchPalette = theme.palette(for: NativeThemeAppearance(colorScheme))
                     Button {
                         viewModel.selectTheme(theme)
                     } label: {
@@ -829,7 +830,7 @@ struct NativePasswordGeneratorView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(viewModel.isGenerating ? palette.disabledBackground : Color.white.opacity(0.78))
+                .fill(viewModel.isGenerating ? palette.disabledBackground : palette.surface)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -854,7 +855,7 @@ struct NativePasswordGeneratorView: View {
                 .padding(.horizontal, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(selected ? palette.accent.opacity(0.14) : (viewModel.isGenerating ? palette.disabledBackground : Color.white.opacity(0.82)))
+                        .fill(selected ? palette.accent.opacity(0.14) : (viewModel.isGenerating ? palette.disabledBackground : palette.surface))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -933,8 +934,8 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         generationTask?.cancel()
     }
 
-    var palette: NativeThemePalette {
-        settings.theme.palette
+    func palette(for colorScheme: ColorScheme) -> NativeThemePalette {
+        settings.theme.palette(for: NativeThemeAppearance(colorScheme))
     }
 
     var canApplyImportedSymbols: Bool {
@@ -2061,7 +2062,7 @@ private struct NativePasswordRow: View {
                         .padding(.vertical, 5)
                         .background(
                             Capsule()
-                                .fill(Color.white.opacity(0.88))
+                                .fill(palette.surfaceStrong)
                         )
                         .overlay(
                             Capsule()
@@ -2117,7 +2118,7 @@ private struct NativePasswordRow: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.82))
+                .fill(palette.surface)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -2234,6 +2235,9 @@ struct NativeThemePalette {
     let backgroundTop: Color
     let backgroundBottom: Color
     let panel: Color
+    let surfaceSoft: Color
+    let surface: Color
+    let surfaceStrong: Color
     let panelBorder: Color
     let ink: Color
     let muted: Color
@@ -2243,6 +2247,22 @@ struct NativeThemePalette {
     let disabledBackground: Color
     let disabledText: Color
     let danger: Color
+}
+
+enum NativeThemeAppearance {
+    case light
+    case dark
+
+    init(_ colorScheme: ColorScheme) {
+        switch colorScheme {
+        case .light:
+            self = .light
+        case .dark:
+            self = .dark
+        @unknown default:
+            self = .light
+        }
+    }
 }
 
 enum NativeFocusedField: Hashable {
@@ -2344,13 +2364,16 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    var palette: NativeThemePalette {
-        switch self {
-        case .blue:
+    func palette(for appearance: NativeThemeAppearance) -> NativeThemePalette {
+        switch (self, appearance) {
+        case (.blue, .light):
             return NativeThemePalette(
                 backgroundTop: Color(hex: 0xEDF4FF),
                 backgroundBottom: Color(hex: 0xD7E6FF),
                 panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
                 panelBorder: Color(hex: 0x435E91, opacity: 0.14),
                 ink: Color(hex: 0x142033),
                 muted: Color(hex: 0x60708A),
@@ -2361,11 +2384,32 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
                 disabledText: Color(hex: 0x8C98AA),
                 danger: Color(hex: 0xB54D3C)
             )
-        case .green:
+        case (.blue, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x0F1726),
+                backgroundBottom: Color(hex: 0x16233A),
+                panel: Color(hex: 0x172235, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x1E2C45, opacity: 0.94),
+                surface: Color(hex: 0x243451, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x2C4062, opacity: 0.96),
+                panelBorder: Color(hex: 0x78A6FF, opacity: 0.20),
+                ink: Color(hex: 0xEDF4FF),
+                muted: Color(hex: 0xA8BAD8),
+                accent: Color(hex: 0x6C9EFF),
+                accentStrong: Color(hex: 0x4B82F6),
+                accentSoft: Color(hex: 0x233B63),
+                disabledBackground: Color(hex: 0x243245, opacity: 0.96),
+                disabledText: Color(hex: 0x7183A0),
+                danger: Color(hex: 0xF07A6A)
+            )
+        case (.green, .light):
             return NativeThemePalette(
                 backgroundTop: Color(hex: 0xECF9F1),
                 backgroundBottom: Color(hex: 0xD6F0DF),
                 panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
                 panelBorder: Color(hex: 0x3F805D, opacity: 0.14),
                 ink: Color(hex: 0x142033),
                 muted: Color(hex: 0x5D7D69),
@@ -2376,11 +2420,32 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
                 disabledText: Color(hex: 0x8C98AA),
                 danger: Color(hex: 0xB54D3C)
             )
-        case .pink:
+        case (.green, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x101B16),
+                backgroundBottom: Color(hex: 0x18281F),
+                panel: Color(hex: 0x17251E, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x1D3127, opacity: 0.94),
+                surface: Color(hex: 0x243B30, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x2B473A, opacity: 0.96),
+                panelBorder: Color(hex: 0x6BD69A, opacity: 0.18),
+                ink: Color(hex: 0xEEF8F2),
+                muted: Color(hex: 0xA8C8B5),
+                accent: Color(hex: 0x53C97F),
+                accentStrong: Color(hex: 0x34A861),
+                accentSoft: Color(hex: 0x204431),
+                disabledBackground: Color(hex: 0x243245, opacity: 0.96),
+                disabledText: Color(hex: 0x7183A0),
+                danger: Color(hex: 0xF07A6A)
+            )
+        case (.pink, .light):
             return NativeThemePalette(
                 backgroundTop: Color(hex: 0xFFF0F7),
                 backgroundBottom: Color(hex: 0xFFDBE9),
                 panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
                 panelBorder: Color(hex: 0xA64E80, opacity: 0.14),
                 ink: Color(hex: 0x142033),
                 muted: Color(hex: 0x8A6077),
@@ -2391,11 +2456,32 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
                 disabledText: Color(hex: 0x8C98AA),
                 danger: Color(hex: 0xB54D3C)
             )
-        case .red:
+        case (.pink, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x1C121A),
+                backgroundBottom: Color(hex: 0x2A1623),
+                panel: Color(hex: 0x271927, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x341E31, opacity: 0.94),
+                surface: Color(hex: 0x40233C, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x4A2945, opacity: 0.96),
+                panelBorder: Color(hex: 0xFF8AC2, opacity: 0.18),
+                ink: Color(hex: 0xFFF3FA),
+                muted: Color(hex: 0xD3B2C5),
+                accent: Color(hex: 0xFF82BF),
+                accentStrong: Color(hex: 0xE45A9F),
+                accentSoft: Color(hex: 0x4A2540),
+                disabledBackground: Color(hex: 0x3B2E3A, opacity: 0.96),
+                disabledText: Color(hex: 0xA88FA1),
+                danger: Color(hex: 0xFF8A78)
+            )
+        case (.red, .light):
             return NativeThemePalette(
                 backgroundTop: Color(hex: 0xFFF0F0),
                 backgroundBottom: Color(hex: 0xFFD9D9),
                 panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
                 panelBorder: Color(hex: 0xA34D4D, opacity: 0.14),
                 ink: Color(hex: 0x142033),
                 muted: Color(hex: 0x8A6464),
@@ -2406,11 +2492,32 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
                 disabledText: Color(hex: 0x8C98AA),
                 danger: Color(hex: 0xB54D3C)
             )
-        case .yellow:
+        case (.red, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x1C1212),
+                backgroundBottom: Color(hex: 0x2A1717),
+                panel: Color(hex: 0x281919, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x351F1F, opacity: 0.94),
+                surface: Color(hex: 0x402525, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x4B2B2B, opacity: 0.96),
+                panelBorder: Color(hex: 0xFF8D8D, opacity: 0.18),
+                ink: Color(hex: 0xFFF4F4),
+                muted: Color(hex: 0xD0B0B0),
+                accent: Color(hex: 0xFF7A7A),
+                accentStrong: Color(hex: 0xE65C5C),
+                accentSoft: Color(hex: 0x4A2828),
+                disabledBackground: Color(hex: 0x3B2E3A, opacity: 0.96),
+                disabledText: Color(hex: 0xA88FA1),
+                danger: Color(hex: 0xFF8A78)
+            )
+        case (.yellow, .light):
             return NativeThemePalette(
                 backgroundTop: Color(hex: 0xFFFBE8),
                 backgroundBottom: Color(hex: 0xFFF0BF),
                 panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
                 panelBorder: Color(hex: 0xA88A36, opacity: 0.14),
                 ink: Color(hex: 0x142033),
                 muted: Color(hex: 0x8A794B),
@@ -2421,11 +2528,32 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
                 disabledText: Color(hex: 0x8C98AA),
                 danger: Color(hex: 0xB54D3C)
             )
-        case .orange:
+        case (.yellow, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x1B1810),
+                backgroundBottom: Color(hex: 0x292313),
+                panel: Color(hex: 0x272111, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x342A16, opacity: 0.94),
+                surface: Color(hex: 0x40331B, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x4A3C20, opacity: 0.96),
+                panelBorder: Color(hex: 0xFFD15E, opacity: 0.18),
+                ink: Color(hex: 0xFFF9EA),
+                muted: Color(hex: 0xD8C18F),
+                accent: Color(hex: 0xF0C24A),
+                accentStrong: Color(hex: 0xD9A624),
+                accentSoft: Color(hex: 0x493A1A),
+                disabledBackground: Color(hex: 0x3A3425, opacity: 0.96),
+                disabledText: Color(hex: 0xA99B77),
+                danger: Color(hex: 0xFF9872)
+            )
+        case (.orange, .light):
             return NativeThemePalette(
                 backgroundTop: Color(hex: 0xFFF4EA),
                 backgroundBottom: Color(hex: 0xFFE0C4),
                 panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
                 panelBorder: Color(hex: 0xAA6A36, opacity: 0.14),
                 ink: Color(hex: 0x142033),
                 muted: Color(hex: 0x8C6B51),
@@ -2436,11 +2564,32 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
                 disabledText: Color(hex: 0x8C98AA),
                 danger: Color(hex: 0xB54D3C)
             )
-        case .purple:
+        case (.orange, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x1B1410),
+                backgroundBottom: Color(hex: 0x2A1C12),
+                panel: Color(hex: 0x271B14, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x342218, opacity: 0.94),
+                surface: Color(hex: 0x402A1D, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x4B3120, opacity: 0.96),
+                panelBorder: Color(hex: 0xFFAB72, opacity: 0.18),
+                ink: Color(hex: 0xFFF6EE),
+                muted: Color(hex: 0xD6B49A),
+                accent: Color(hex: 0xFF9A57),
+                accentStrong: Color(hex: 0xF07C2C),
+                accentSoft: Color(hex: 0x4A301E),
+                disabledBackground: Color(hex: 0x3A3025, opacity: 0.96),
+                disabledText: Color(hex: 0xA99484),
+                danger: Color(hex: 0xFF9872)
+            )
+        case (.purple, .light):
             return NativeThemePalette(
                 backgroundTop: Color(hex: 0xF5EFFF),
                 backgroundBottom: Color(hex: 0xE4D8FF),
                 panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
                 panelBorder: Color(hex: 0x6C53A6, opacity: 0.14),
                 ink: Color(hex: 0x142033),
                 muted: Color(hex: 0x70608D),
@@ -2450,6 +2599,24 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
                 disabledBackground: Color(hex: 0xA9B4C6, opacity: 0.18),
                 disabledText: Color(hex: 0x8C98AA),
                 danger: Color(hex: 0xB54D3C)
+            )
+        case (.purple, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x15121D),
+                backgroundBottom: Color(hex: 0x20162A),
+                panel: Color(hex: 0x211927, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x2B2034, opacity: 0.94),
+                surface: Color(hex: 0x352740, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x3F2E4B, opacity: 0.96),
+                panelBorder: Color(hex: 0xB196FF, opacity: 0.18),
+                ink: Color(hex: 0xF8F3FF),
+                muted: Color(hex: 0xC0B0E0),
+                accent: Color(hex: 0xA88BFF),
+                accentStrong: Color(hex: 0x8566F0),
+                accentSoft: Color(hex: 0x3F2C63),
+                disabledBackground: Color(hex: 0x322A3D, opacity: 0.96),
+                disabledText: Color(hex: 0x988AB1),
+                danger: Color(hex: 0xFF8A78)
             )
         }
     }
