@@ -799,11 +799,7 @@ struct NativePasswordGeneratorView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
                         ForEach(viewModel.results) { password in
-                            NativePasswordRow(
-                                password: password,
-                                palette: palette,
-                                previewLineLength: isSavedSettingsSidebarVisible ? 40 : 52
-                            ) {
+                            NativePasswordRow(password: password, palette: palette) {
                                 viewModel.copyPassword(id: password.id)
                             }
                         }
@@ -2042,17 +2038,13 @@ struct NativePasswordAnalysis {
 private struct NativePasswordRow: View {
     let password: NativeGeneratedPasswordListItem
     let palette: NativeThemePalette
-    let previewLineLength: Int
     let onCopy: () -> Void
     @State private var isCopied = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(wrapPasswordPreview(password.displayValue, lineLength: previewLineLength))
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(palette.ink)
-                    .textSelection(.enabled)
+                NativePasswordPreviewLabel(text: password.displayValue, textColor: NSColor(palette.ink))
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if !password.note.isEmpty {
@@ -2131,6 +2123,31 @@ private struct NativePasswordRow: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(palette.panelBorder, lineWidth: 1)
         )
+    }
+}
+
+private struct NativePasswordPreviewLabel: NSViewRepresentable {
+    let text: String
+    let textColor: NSColor
+
+    func makeNSView(context: Context) -> NSTextField {
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.isSelectable = true
+        label.isEditable = false
+        label.isBordered = false
+        label.drawsBackground = false
+        label.lineBreakMode = .byCharWrapping
+        label.maximumNumberOfLines = 0
+        label.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold)
+        label.textColor = textColor
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return label
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        nsView.stringValue = text
+        nsView.textColor = textColor
     }
 }
 
@@ -2509,31 +2526,6 @@ private func copyToPasteboard(_ text: String) {
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
     pasteboard.setString(text, forType: .string)
-}
-
-private nonisolated func wrapPasswordPreview(_ text: String, lineLength: Int = 40) -> String {
-    guard lineLength > 0, text.count > lineLength else {
-        return text
-    }
-
-    var wrappedLines: [String] = []
-    var currentLine = ""
-    currentLine.reserveCapacity(lineLength)
-
-    for character in text {
-        currentLine.append(character)
-
-        if currentLine.count == lineLength {
-            wrappedLines.append(currentLine)
-            currentLine.removeAll(keepingCapacity: true)
-        }
-    }
-
-    if !currentLine.isEmpty {
-        wrappedLines.append(currentLine)
-    }
-
-    return wrappedLines.joined(separator: "\n")
 }
 
 private nonisolated func formatNumber<T: BinaryInteger>(_ value: T) -> String {
