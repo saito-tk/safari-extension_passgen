@@ -1,10 +1,10 @@
 # パスワードジェネレータ
 
-Safari 向けのパスワードジェネレータ拡張です。ポップアップ内で条件を指定し、複数件のパスワードを生成できます。
+macOS 向けのパスワードジェネレータアプリです。条件を指定し、複数件のパスワードをまとめて生成できます。
 
 ## 主な機能
 
-- `crypto.getRandomValues` を使った乱数生成
+- 暗号学的に安全な乱数を使ったパスワード生成
 - 英字(大文字) / 英字(小文字) / 数字 / 記号の個別選択
 - 記号の個別選択
 - 記号文字列の貼り付けから記号選択状態へ反映
@@ -17,19 +17,23 @@ Safari 向けのパスワードジェネレータ拡張です。ポップアッ�
 - 行ごとのコピーアイコン
 - テーマ切り替え
   - 青 / 緑 / ピンク / 赤 / 黄色 / オレンジ / 紫
-- `storage.local` による設定保存
+- アプリ内設定の保存
 
 ## UI 構成
 
-- `設定` タブ
+- 左カラム
+  - 保存済み設定一覧
+- 中央カラム
+  - 文字数 / 件数
   - 文字種の選択
   - 記号の選択
   - 生成ルールの設定
   - 表示テーマの切り替え
-- `結果` タブ
+- 右カラム
   - 生成されたパスワード一覧
   - 進捗表示 `(n/件数)`
   - コピー操作
+  - 強度や補助情報
 
 ## 入力仕様
 
@@ -49,7 +53,7 @@ Safari 向けのパスワードジェネレータ拡張です。ポップアッ�
 
 記号欄の下にある入力欄へ文字列を貼り付けて `反映` を押すと、対応する記号だけが選択状態になります。
 
-この機能は、サービスごとに「使用できる記号」が異なるケースを想定しています。サービス側が利用可能な記号一覧を表示している場合、その文字列をコピーしてすぐに拡張側へ反映できるため、記号設定を手で 1 つずつ合わせる手間を減らせます。
+この機能は、サービスごとに「使用できる記号」が異なるケースを想定しています。サービス側が利用可能な記号一覧を表示している場合、その文字列をコピーしてすぐにアプリ側へ反映できるため、記号設定を手で 1 つずつ合わせる手間を減らせます。
 
 - 対応する記号が含まれている場合
   - 含まれる記号を選択
@@ -63,7 +67,7 @@ Safari 向けのパスワードジェネレータ拡張です。ポップアッ�
 ## 生成中の挙動
 
 - `生成` ボタンを押した時だけ生成を開始します
-- 生成中は設定タブの入力項目を非活性にします
+- 生成中は設定系 UI を非活性にします
 - 結果は 1 件ずつ追加表示されます
 
 ## コピー表示
@@ -86,41 +90,18 @@ Safari 向けのパスワードジェネレータ拡張です。ポップアッ�
 
 ## ファイル構成
 
-- `manifest.json`: Web Extension マニフェスト
-- `popup.html`: ポップアップ UI
-- `popup.css`: スタイル
-- `popup.js`: 生成ロジック、保存処理、テーマ切り替え、UI 制御
+- `xcode/Passgen/Passgen/NativePasswordGeneratorView.swift`: メイン UI と生成ロジック
+- `xcode/Passgen/Passgen/ViewController.swift`: SwiftUI 画面のホスト
+- `xcode/Passgen/Passgen/AppPreferences.swift`: アプリ全体の設定
+- `xcode/Passgen/Passgen/SettingsWindowController.swift`: 設定ウィンドウ
+- `xcode/Passgen/Passgen/Base.lproj/Main.storyboard`: メインウィンドウ構成
 - `AGENTS.md`: Codex 向けの作業ガイド
 
-## Safari での実行
-
-### 1. Xcode プロジェクトを用意する
-
-このリポジトリは Web Extension のソースです。Safari で実行するには Xcode プロジェクト化します。
-
-例:
-
-```bash
-xcrun safari-web-extension-converter . \
-  --project-location ./xcode \
-  --app-name Passgen \
-  --bundle-identifier com.saitotk.passgen \
-  --swift \
-  --macos-only
-```
-
-### 2. Xcode で実行する
+## 実行方法
 
 1. `xcode/Passgen/Passgen.xcodeproj` を開く
 2. `Passgen` スキームで `Run`
-3. Safari の `設定 > Extensions` で `Passgen` を有効化する
 
 ## 開発メモ
 
-- スクリプト構文確認:
-
-```bash
-node --check popup.js
-```
-
-- 設定値は拡張のローカルストレージに保存されます
+- 設定値はアプリのローカル設定として保存されます

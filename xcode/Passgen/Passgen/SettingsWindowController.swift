@@ -16,7 +16,7 @@ final class SettingsWindowController: NSWindowController {
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
-        window.setContentSize(NSSize(width: 360, height: 260))
+        window.setContentSize(NSSize(width: 360, height: 170))
         super.init(window: window)
     }
 
@@ -27,28 +27,10 @@ final class SettingsWindowController: NSWindowController {
 }
 
 private struct SettingsView: View {
-    @State private var selectedMode = AppPreferences.shared.presentationMode
     @State private var selectedAppearanceMode = AppPreferences.shared.appearanceMode
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("表示方式")
-                    .font(.system(size: 15, weight: .semibold))
-
-                Picker("表示方式", selection: $selectedMode) {
-                    Text(AppPresentationMode.web.title).tag(AppPresentationMode.web)
-                    Text(AppPresentationMode.swift.title).tag(AppPresentationMode.swift)
-                }
-                .pickerStyle(.segmented)
-
-                Text("変更するとメインウィンドウの表示内容とサイズが切り替わります。")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-
-            Divider()
-
             VStack(alignment: .leading, spacing: 10) {
                 Text("アプリテーマ")
                     .font(.system(size: 15, weight: .semibold))
@@ -60,7 +42,7 @@ private struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Text("Swift版アプリ全体の外観を切り替えます。System は macOS の設定に追従します。")
+                Text("アプリ全体の外観を切り替えます。System は macOS の設定に追従します。")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -69,9 +51,6 @@ private struct SettingsView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onChange(of: selectedMode) { _, newValue in
-            AppPreferences.shared.presentationMode = newValue
-        }
         .onChange(of: selectedAppearanceMode) { _, newValue in
             AppPreferences.shared.appearanceMode = newValue
         }
