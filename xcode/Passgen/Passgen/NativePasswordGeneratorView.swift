@@ -60,7 +60,6 @@ struct NativePasswordGeneratorView: View {
     @StateObject var viewModel: NativePasswordGeneratorViewModel
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var focusedField: NativeFocusedField?
-    @State private var isSavedSettingsSidebarVisible = true
     @State private var activeCharacterTab: NativeCharacterTab = .uppercase
 
     init(viewModel: NativePasswordGeneratorViewModel) {
@@ -75,10 +74,13 @@ struct NativePasswordGeneratorView: View {
                 .ignoresSafeArea()
 
             GeometryReader { proxy in
-                let layout = NativeSwiftLayoutMetrics(containerSize: proxy.size, isSidebarVisible: isSavedSettingsSidebarVisible)
+                let layout = NativeSwiftLayoutMetrics(
+                    containerSize: proxy.size,
+                    isSidebarVisible: viewModel.isSavedSettingsSidebarVisible
+                )
 
                 HStack(alignment: .top, spacing: layout.columnSpacing) {
-                    if isSavedSettingsSidebarVisible {
+                    if viewModel.isSavedSettingsSidebarVisible {
                         savedSettingsColumn(palette: palette)
                             .frame(width: layout.sidebarWidth)
                             .transition(.move(edge: .leading).combined(with: .opacity))
@@ -95,7 +97,7 @@ struct NativePasswordGeneratorView: View {
                 .padding(layout.outerPadding)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: isSavedSettingsSidebarVisible)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.isSavedSettingsSidebarVisible)
         .onChange(of: focusedField) { previousField, nextField in
             viewModel.handleFocusChange(from: previousField, to: nextField)
         }
@@ -113,7 +115,6 @@ struct NativePasswordGeneratorView: View {
     private func centerColumn(palette: NativeThemePalette) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                sidebarToggleRow(palette: palette)
                 heroCard(palette: palette)
                 settingsCard(palette: palette)
                 rulesCard(palette: palette)
@@ -126,34 +127,6 @@ struct NativePasswordGeneratorView: View {
     private func rightColumn(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             resultsCard(palette: palette)
-        }
-    }
-
-    private func sidebarToggleRow(palette: NativeThemePalette) -> some View {
-        HStack {
-            Button {
-                isSavedSettingsSidebarVisible.toggle()
-            } label: {
-                Label(
-                    isSavedSettingsSidebarVisible ? "保存済み設定を隠す" : "保存済み設定を表示",
-                    systemImage: isSavedSettingsSidebarVisible ? "sidebar.leading" : "sidebar.left"
-                )
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(palette.accentStrong)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(
-                    Capsule()
-                        .fill(palette.surface)
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(palette.panelBorder, lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
-
-            Spacer(minLength: 0)
         }
     }
 
@@ -915,6 +888,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var progressCompleted = 0
     @Published var progressTotal = 0
     @Published var isGenerating = false
+    @Published var isSavedSettingsSidebarVisible = true
 
     private var generationTask: Task<Void, Never>?
     private var isRestoringSettings = true
@@ -948,6 +922,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     var progressText: String {
         "(\(progressCompleted)/\(progressTotal))"
+    }
+
+    func toggleSavedSettingsSidebar() {
+        isSavedSettingsSidebarVisible.toggle()
     }
 
     func selectedCharacters(for tab: NativeCharacterTab) -> [String] {
