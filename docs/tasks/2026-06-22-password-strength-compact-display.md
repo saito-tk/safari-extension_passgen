@@ -10,11 +10,11 @@
 
 ## 作業タスク
 
-- [ ] 結果行の評価軸表示を、大きなグリッド状の枠から小さなチップ表示へ変更する。
-- [ ] 結果行では短い軸ラベルを使い、表示幅を抑える。
-- [ ] 総合評価、推定 bits、各軸グレードを同じ情報列にまとめる。
-- [ ] パスワード文字列とコピー操作の視認性を維持する。
-- [ ] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
+- [x] 結果行の評価軸表示を、大きなグリッド状の枠から小さなチップ表示へ変更する。
+- [x] 結果行では短い軸ラベルを使い、表示幅を抑える。
+- [x] 総合評価、推定 bits、各軸グレードを同じ情報列にまとめる。
+- [x] パスワード文字列とコピー操作の視認性を維持する。
+- [x] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
 
 ## 完了条件
 

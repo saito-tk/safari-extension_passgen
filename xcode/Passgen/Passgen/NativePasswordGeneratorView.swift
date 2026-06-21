@@ -2664,6 +2664,7 @@ enum NativePasswordGrade: Int {
 struct NativePasswordGradeMetric: Identifiable {
     let id: String
     let title: String
+    let compactTitle: String
     let grade: NativePasswordGrade
 }
 
@@ -2695,11 +2696,11 @@ struct NativePasswordAnalysis {
         self.categoryCount = categoryCount
         self.overallGrade = overallGrade
         self.metrics = [
-            NativePasswordGradeMetric(id: "length", title: "長さ", grade: lengthGrade),
-            NativePasswordGradeMetric(id: "bruteForce", title: "総当たり耐性", grade: bruteForceGrade),
-            NativePasswordGradeMetric(id: "breadth", title: "文字の広さ", grade: breadthGrade),
-            NativePasswordGradeMetric(id: "knownRisk", title: "既知リスク", grade: knownRiskGrade),
-            NativePasswordGradeMetric(id: "guessability", title: "推測されにくさ", grade: guessabilityGrade)
+            NativePasswordGradeMetric(id: "length", title: "長さ", compactTitle: "長さ", grade: lengthGrade),
+            NativePasswordGradeMetric(id: "bruteForce", title: "総当たり耐性", compactTitle: "耐性", grade: bruteForceGrade),
+            NativePasswordGradeMetric(id: "breadth", title: "文字の広さ", compactTitle: "広さ", grade: breadthGrade),
+            NativePasswordGradeMetric(id: "knownRisk", title: "既知リスク", compactTitle: "既知", grade: knownRiskGrade),
+            NativePasswordGradeMetric(id: "guessability", title: "推測されにくさ", compactTitle: "推測", grade: guessabilityGrade)
         ]
         self.warnings = getPasswordAnalysisMessages(
             lengthGrade: lengthGrade,
@@ -2724,7 +2725,7 @@ private struct NativePasswordRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 5) {
                 NativePasswordPreviewLabel(text: password.displayValue, textColor: NSColor(palette.ink))
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -2734,44 +2735,7 @@ private struct NativePasswordRow: View {
                         .foregroundStyle(palette.accent)
                 }
 
-                HStack(spacing: 8) {
-                    Text("総合評価")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(palette.muted)
-
-                    Text(password.analysis.overallGrade.label)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(gradeForeground(password.analysis.overallGrade))
-                        .frame(width: 30, height: 24)
-                        .background(
-                            Capsule()
-                                .fill(gradeBackground(password.analysis.overallGrade))
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(gradeBorder(password.analysis.overallGrade), lineWidth: 1)
-                        )
-
-                    Text("推定 \(formatNumber(password.analysis.entropy)) bits")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(palette.ink)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule()
-                                .fill(palette.surfaceStrong)
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(palette.panelBorder, lineWidth: 1)
-                        )
-                }
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 94), spacing: 6)], alignment: .leading, spacing: 6) {
-                    ForEach(password.analysis.metrics) { metric in
-                        gradeMetricChip(metric)
-                    }
-                }
+                compactStrengthSummary
 
                 Text(password.analysis.warningDetail)
                     .font(.system(size: 11))
@@ -2792,7 +2756,7 @@ private struct NativePasswordRow: View {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(palette.accentStrong)
-                        .frame(width: 38, height: 38)
+                        .frame(width: 34, height: 34)
                         .background(
                             Circle()
                                 .fill(palette.accentSoft)
@@ -2806,9 +2770,9 @@ private struct NativePasswordRow: View {
                         .foregroundStyle(palette.accent)
                 }
             }
-            .frame(width: 52)
+            .frame(width: 48)
         }
-        .padding(14)
+        .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(palette.surface)
@@ -2819,28 +2783,98 @@ private struct NativePasswordRow: View {
         )
     }
 
+    private var compactStrengthSummary: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 5) {
+                overviewGradeChip
+                entropyChip
+                compactMetricsRow
+            }
+            .fixedSize(horizontal: true, vertical: false)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 5) {
+                    overviewGradeChip
+                    entropyChip
+                }
+
+                compactMetricsRow
+            }
+        }
+    }
+
+    private var compactMetricsRow: some View {
+        HStack(spacing: 4) {
+            ForEach(password.analysis.metrics) { metric in
+                gradeMetricChip(metric)
+            }
+        }
+    }
+
+    private var overviewGradeChip: some View {
+        HStack(spacing: 4) {
+            Text("総合")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+
+            Text(password.analysis.overallGrade.label)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(gradeForeground(password.analysis.overallGrade))
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(
+            Capsule()
+                .fill(gradeBackground(password.analysis.overallGrade))
+        )
+        .overlay(
+            Capsule()
+                .stroke(gradeBorder(password.analysis.overallGrade), lineWidth: 1)
+        )
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var entropyChip: some View {
+        Text("\(formatNumber(password.analysis.entropy)) bits")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(palette.ink)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(palette.surfaceStrong)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(palette.panelBorder, lineWidth: 1)
+            )
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
     private func gradeMetricChip(_ metric: NativePasswordGradeMetric) -> some View {
-        HStack(spacing: 5) {
-            Text(metric.title)
+        HStack(spacing: 3) {
+            Text(metric.compactTitle)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
 
             Text(metric.grade.label)
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(gradeForeground(metric.grade))
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            Capsule()
                 .fill(gradeBackground(metric.grade))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            Capsule()
                 .stroke(gradeBorder(metric.grade), lineWidth: 1)
         )
+        .help(metric.title)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func gradeForeground(_ grade: NativePasswordGrade) -> Color {
