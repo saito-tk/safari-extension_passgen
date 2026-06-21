@@ -10,14 +10,14 @@
 
 ## 作業タスク
 
-- [ ] 既存の強度表示から `Basic` / `Good` / `Strong` / `Very Strong` 前提を外す。
-- [ ] `Variety` / `Balance` バッジをユーザー向け表示から削除する。
-- [ ] `長さ`、`総当たり耐性`、`文字の広さ`、`既知リスク`、`推測されにくさ` の各グレードを計算する。
-- [ ] 各軸のグレードから `総合評価` を計算する。
-- [ ] 総合評価と各軸の S-F グレードを結果行に表示する。
-- [ ] 重要度の高い補助メッセージを 2-3 件に絞って表示する。
-- [ ] README の強度表示説明を更新する。
-- [ ] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
+- [x] 既存の強度表示から `Basic` / `Good` / `Strong` / `Very Strong` 前提を外す。
+- [x] `Variety` / `Balance` バッジをユーザー向け表示から削除する。
+- [x] `長さ`、`総当たり耐性`、`文字の広さ`、`既知リスク`、`推測されにくさ` の各グレードを計算する。
+- [x] 各軸のグレードから `総合評価` を計算する。
+- [x] 総合評価と各軸の S-F グレードを結果行に表示する。
+- [x] 重要度の高い補助メッセージを 2-3 件に絞って表示する。
+- [x] README の強度表示説明を更新する。
+- [x] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
 
 ## 完了条件
 
