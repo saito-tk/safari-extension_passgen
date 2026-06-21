@@ -63,6 +63,7 @@ struct NativePasswordGeneratorView: View {
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var focusedField: NativeFocusedField?
     @State private var activeCharacterTab: NativeCharacterTab = .uppercase
+    @State private var presetPendingDeletion: NativePasswordPreset?
 
     init(viewModel: NativePasswordGeneratorViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -102,6 +103,29 @@ struct NativePasswordGeneratorView: View {
         .animation(.easeInOut(duration: 0.2), value: viewModel.isSavedSettingsSidebarVisible)
         .onChange(of: focusedField) { previousField, nextField in
             viewModel.handleFocusChange(from: previousField, to: nextField)
+        }
+        .alert(
+            "プリセットを削除しますか？",
+            isPresented: Binding(
+                get: { presetPendingDeletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        presetPendingDeletion = nil
+                    }
+                }
+            ),
+            presenting: presetPendingDeletion
+        ) { preset in
+            Button("削除", role: .destructive) {
+                viewModel.deletePreset(id: preset.id)
+                presetPendingDeletion = nil
+            }
+
+            Button("キャンセル", role: .cancel) {
+                presetPendingDeletion = nil
+            }
+        } message: { preset in
+            Text("「\(preset.name)」を削除します。この操作は元に戻せません。")
         }
     }
 
@@ -272,35 +296,72 @@ struct NativePasswordGeneratorView: View {
                     ForEach(viewModel.sortedPresets) { preset in
                         let isSelected = viewModel.selectedPresetID == preset.id
 
-                        Button {
-                            viewModel.selectPreset(id: preset.id)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(preset.name)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
-                                    .lineLimit(2)
+                        HStack(spacing: 10) {
+                            Button {
+                                viewModel.selectPreset(id: preset.id)
+                            } label: {
+                                HStack(alignment: .center, spacing: 10) {
+                                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                        .fill(isSelected ? palette.accent : Color.clear)
+                                        .frame(width: 4)
 
-                                if let metadataText = viewModel.presetMetadataText(for: preset) {
-                                    Text(metadataText)
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
-                                        .fixedSize(horizontal: false, vertical: true)
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                            Text(preset.name)
+                                                .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
+                                                .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
+                                                .lineLimit(2)
+
+                                            if isSelected {
+                                                Text("選択中")
+                                                    .font(.system(size: 10, weight: .bold))
+                                                    .foregroundStyle(palette.accentStrong)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 3)
+                                                    .background(
+                                                        Capsule()
+                                                            .fill(palette.accent.opacity(0.18))
+                                                    )
+                                            }
+                                        }
+
+                                        if let metadataText = viewModel.presetMetadataText(for: preset) {
+                                            Text(metadataText)
+                                                .font(.system(size: 11))
+                                                .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                    }
+
+                                    Spacer(minLength: 0)
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(isSelected ? palette.accent.opacity(0.12) : palette.surface)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(isSelected ? palette.accent.opacity(0.42) : palette.panelBorder, lineWidth: 1)
-                            )
+                            .buttonStyle(.plain)
+                            .disabled(viewModel.isGenerating)
+
+                            Menu {
+                                Button("削除", role: .destructive) {
+                                    presetPendingDeletion = preset
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
+                                    .frame(width: 28, height: 28)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .disabled(viewModel.isGenerating)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(viewModel.isGenerating)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(isSelected ? palette.accent.opacity(0.24) : palette.surface)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(isSelected ? palette.accent.opacity(0.68) : palette.panelBorder, lineWidth: isSelected ? 2 : 1)
+                        )
                     }
                 }
             }
@@ -1213,6 +1274,20 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         case .updatedAt:
             return "更新日 \(Self.formatPresetDate(preset.updatedAt))"
         }
+    }
+
+    func deletePreset(id: String) {
+        guard !isGenerating, let deletedIndex = presets.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let deletedName = presets[deletedIndex].name
+        presets.remove(at: deletedIndex)
+        selectedPresetID = nil
+        presetNameText = ""
+        settingsBeforePresetSelection = nil
+        persistPresets()
+        presetStatus = NativeInlineStatus(message: "「\(deletedName)」を削除しました。")
     }
 
     private func deselectPreset() {
