@@ -46,6 +46,7 @@ private let nativeSymbolOptions: [NativeSymbolOption] = [
 
 private let nativeSimilarCharacters = Set(["I", "l", "1", "O", "0", "o"])
 private let nativeSettingsStorageKey = "nativePassgenSettings"
+private let nativePresetsStorageKey = "nativePassgenPresets"
 private let nativeMinPasswordLength = 4
 private let nativeMaxPasswordLength = 999_999
 private let nativeMinPasswordCount = 1
@@ -151,19 +152,44 @@ struct NativePasswordGeneratorView: View {
                     )
             }
 
-            Text("ここに保存した設定が並びます。保存機能を追加するまでは、空の一覧として表示されます。")
-                .font(.system(size: 12))
-                .foregroundStyle(palette.muted)
-
             VStack(alignment: .leading, spacing: 10) {
-                Text("まだ保存済み設定はありません。")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(palette.ink)
-
-                Text("設定名を付けて保存した項目を、ここから呼び出したり整理したりできる構成にします。")
-                    .font(.system(size: 12))
+                Text("現在の設定を保存")
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+
+                TextField("プリセット名", text: $viewModel.presetNameText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(palette.panelBorder, lineWidth: 1)
+                    )
+                    .disabled(viewModel.isGenerating)
+
+                Button {
+                    viewModel.savePreset()
+                } label: {
+                    Text("保存")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(viewModel.canSavePreset ? Color.white : palette.disabledText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule()
+                                .fill(viewModel.canSavePreset ? palette.accent : palette.disabledBackground)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!viewModel.canSavePreset)
+
+                StatusMessageView(status: viewModel.presetStatus, palette: palette)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
@@ -175,6 +201,72 @@ struct NativePasswordGeneratorView: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(palette.panelBorder, lineWidth: 1)
             )
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("プリセット一覧")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+
+                if viewModel.presets.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("まだ保存済み設定はありません。")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(palette.ink)
+
+                        Text("名前を付けて保存すると、ここから設定を呼び出せます。")
+                            .font(.system(size: 12))
+                            .foregroundStyle(palette.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(palette.surface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(palette.panelBorder, lineWidth: 1)
+                    )
+                } else {
+                    ForEach(viewModel.presets) { preset in
+                        let isSelected = viewModel.selectedPresetID == preset.id
+
+                        Button {
+                            viewModel.selectPreset(id: preset.id)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(preset.name)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
+                                    .lineLimit(2)
+
+                                Text(viewModel.presetDetailText(for: preset))
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                Text(viewModel.presetCharacterSummary(for: preset))
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.accentStrong)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(isSelected ? palette.accent.opacity(0.12) : palette.surface)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(isSelected ? palette.accent.opacity(0.42) : palette.panelBorder, lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isGenerating)
+                    }
+                }
+            }
         }
         .padding(16)
         .nativeCardStyle(palette: palette)
@@ -910,6 +1002,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var progressTotal = 0
     @Published var isGenerating = false
     @Published var isSavedSettingsSidebarVisible = true
+    @Published var presetNameText = ""
+    @Published var presetStatus = NativeInlineStatus()
+    @Published var presets: [NativePasswordPreset] = []
+    @Published var selectedPresetID: String?
 
     private var generationTask: Task<Void, Never>?
     private var isRestoringSettings = true
@@ -920,6 +1016,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         settings = restoredSettings
         lengthText = String(restoredSettings.length)
         countText = String(restoredSettings.count)
+        presets = Self.restorePresets()
         syncCategorySelectionFlags()
         syncSelectAllState()
         isRestoringSettings = false
@@ -937,6 +1034,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         !symbolImportText.isEmpty && !isGenerating
     }
 
+    var canSavePreset: Bool {
+        !Self.sanitizePresetName(presetNameText).isEmpty && !isGenerating
+    }
+
     var usesRulePriorityMode: Bool {
         settings.generationMode == .rulePriority
     }
@@ -951,6 +1052,88 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     func toggleSavedSettingsSidebar() {
         isSavedSettingsSidebarVisible.toggle()
+    }
+
+    func savePreset() {
+        guard !isGenerating else {
+            return
+        }
+
+        let name = Self.sanitizePresetName(presetNameText)
+        guard !name.isEmpty else {
+            presetStatus = NativeInlineStatus(message: "プリセット名を入力してください。", tone: .error)
+            return
+        }
+
+        let now = Date()
+        let snapshot = NativePasswordPresetSettings(settings: settings)
+
+        if let existingIndex = presets.firstIndex(where: { $0.name == name }) {
+            let existingPreset = presets[existingIndex]
+            let updatedPreset = NativePasswordPreset(
+                id: existingPreset.id,
+                name: name,
+                createdAt: existingPreset.createdAt,
+                updatedAt: now,
+                settings: snapshot
+            )
+            presets[existingIndex] = updatedPreset
+            selectedPresetID = updatedPreset.id
+            presetStatus = NativeInlineStatus(message: "既存のプリセットを更新しました。")
+        } else {
+            let preset = NativePasswordPreset(
+                id: UUID().uuidString,
+                name: name,
+                createdAt: now,
+                updatedAt: now,
+                settings: snapshot
+            )
+            presets.insert(preset, at: 0)
+            selectedPresetID = preset.id
+            presetStatus = NativeInlineStatus(message: "プリセットを保存しました。")
+        }
+
+        presetNameText = name
+        persistPresets()
+    }
+
+    func selectPreset(id: String) {
+        guard !isGenerating, let preset = presets.first(where: { $0.id == id }) else {
+            return
+        }
+
+        settings = Self.normalizedSettings(from: preset.settings.applying(to: settings))
+        lengthText = String(settings.length)
+        countText = String(settings.count)
+        syncCategorySelectionFlags()
+        syncSelectAllState()
+        persistSettings()
+        selectedPresetID = preset.id
+        presetNameText = preset.name
+        presetStatus = NativeInlineStatus(message: "プリセットを反映しました。")
+    }
+
+    func presetDetailText(for preset: NativePasswordPreset) -> String {
+        "\(formatNumber(preset.settings.length)) 文字 / \(formatNumber(preset.settings.count)) 件"
+    }
+
+    func presetCharacterSummary(for preset: NativePasswordPreset) -> String {
+        var labels: [String] = []
+        if preset.settings.uppercase {
+            labels.append("大文字")
+        }
+        if preset.settings.lowercase {
+            labels.append("小文字")
+        }
+        if preset.settings.digits {
+            labels.append("数字")
+        }
+        if preset.settings.includeSymbols {
+            labels.append("記号")
+        }
+
+        let characterText = labels.isEmpty ? "文字種なし" : labels.joined(separator: " / ")
+        return "\(characterText) / \(preset.settings.firstCharacterMode.title)"
     }
 
     func selectedCharacters(for tab: NativeCharacterTab) -> [String] {
@@ -1373,12 +1556,36 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
     }
 
+    private func persistPresets() {
+        do {
+            let data = try JSONEncoder().encode(presets)
+            UserDefaults.standard.set(data, forKey: nativePresetsStorageKey)
+        } catch {
+            presetStatus = NativeInlineStatus(message: "プリセットの保存に失敗しました。", tone: .error)
+            NSLog("Failed to persist native presets: %@", error.localizedDescription)
+        }
+    }
+
     private static func restoreSettings() -> NativePasswordSettings {
         guard let data = UserDefaults.standard.data(forKey: nativeSettingsStorageKey),
               let restoredSettings = try? JSONDecoder().decode(NativePasswordSettings.self, from: data) else {
             return .defaultSettings
         }
 
+        return normalizedSettings(from: restoredSettings)
+    }
+
+    private static func restorePresets() -> [NativePasswordPreset] {
+        guard let data = UserDefaults.standard.data(forKey: nativePresetsStorageKey),
+              let restoredPresets = try? JSONDecoder().decode([NativePasswordPreset].self, from: data) else {
+            return []
+        }
+
+        return restoredPresets
+    }
+
+    private static func normalizedSettings(from settings: NativePasswordSettings) -> NativePasswordSettings {
+        let restoredSettings = settings
         var normalizedSettings = restoredSettings
         normalizedSettings.length = clampNumber(restoredSettings.length, minimum: nativeMinPasswordLength, maximum: nativeMaxPasswordLength)
         normalizedSettings.count = clampNumber(restoredSettings.count, minimum: nativeMinPasswordCount, maximum: getMaxCountForLength(normalizedSettings.length))
@@ -1407,6 +1614,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         normalizedSettings.fixedPrefix = sanitizeSingleLineText(normalizedSettings.fixedPrefix)
         normalizedSettings.selectAllSymbols = normalizedSettings.symbols.contains(true) && normalizedSettings.symbols.allSatisfy(\.self)
         return normalizedSettings
+    }
+
+    private static func sanitizePresetName(_ value: String) -> String {
+        sanitizeSingleLineText(value).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func sanitizeSingleLineText(_ value: String) -> String {
@@ -1997,6 +2208,124 @@ struct NativePasswordSettings: Codable {
         try container.encode(maxConsecutiveRun, forKey: .maxConsecutiveRun)
         try container.encode(excludedCharacters, forKey: .excludedCharacters)
         try container.encode(theme, forKey: .theme)
+    }
+}
+
+struct NativePasswordPreset: Codable, Identifiable {
+    let id: String
+    var name: String
+    let createdAt: Date
+    var updatedAt: Date
+    var settings: NativePasswordPresetSettings
+}
+
+struct NativePasswordPresetSettings: Codable {
+    var uppercase: Bool
+    var lowercase: Bool
+    var digits: Bool
+    var includeSymbols: Bool
+    var uppercaseSelections: [Bool]
+    var lowercaseSelections: [Bool]
+    var digitSelections: [Bool]
+    var selectAllSymbols: Bool
+    var symbols: [Bool]
+    var length: Int
+    var count: Int
+    var minimumUppercase: Int
+    var minimumLowercase: Int
+    var minimumDigits: Int
+    var minimumSymbols: Int
+    var generationMode: NativeGenerationMode
+    var excludeSimilar: Bool
+    var requireEachSelectedType: Bool
+    var allowUppercaseFirst: Bool?
+    var allowLowercaseFirst: Bool?
+    var allowDigitsFirst: Bool?
+    var allowSymbolsFirst: Bool?
+    var firstCharacterMode: NativeFirstCharacterMode
+    var fixedPrefix: String?
+    var maxConsecutiveRun: Int
+    var excludedCharacters: String
+
+    init(settings: NativePasswordSettings) {
+        uppercase = settings.uppercase
+        lowercase = settings.lowercase
+        digits = settings.digits
+        includeSymbols = settings.includeSymbols
+        uppercaseSelections = settings.uppercaseSelections
+        lowercaseSelections = settings.lowercaseSelections
+        digitSelections = settings.digitSelections
+        selectAllSymbols = settings.selectAllSymbols
+        symbols = settings.symbols
+        length = settings.length
+        count = settings.count
+        minimumUppercase = settings.minimumUppercase
+        minimumLowercase = settings.minimumLowercase
+        minimumDigits = settings.minimumDigits
+        minimumSymbols = settings.minimumSymbols
+        generationMode = settings.generationMode
+        excludeSimilar = settings.excludeSimilar
+        requireEachSelectedType = settings.requireEachSelectedType
+        firstCharacterMode = settings.firstCharacterMode
+        maxConsecutiveRun = settings.maxConsecutiveRun
+        excludedCharacters = settings.excludedCharacters
+
+        switch settings.firstCharacterMode {
+        case .characterSet:
+            allowUppercaseFirst = settings.allowUppercaseFirst
+            allowLowercaseFirst = settings.allowLowercaseFirst
+            allowDigitsFirst = settings.allowDigitsFirst
+            allowSymbolsFirst = settings.allowSymbolsFirst
+            fixedPrefix = nil
+        case .fixedPrefix:
+            allowUppercaseFirst = nil
+            allowLowercaseFirst = nil
+            allowDigitsFirst = nil
+            allowSymbolsFirst = nil
+            fixedPrefix = settings.fixedPrefix
+        }
+    }
+
+    func applying(to currentSettings: NativePasswordSettings) -> NativePasswordSettings {
+        var appliedSettings = currentSettings
+        appliedSettings.uppercase = uppercase
+        appliedSettings.lowercase = lowercase
+        appliedSettings.digits = digits
+        appliedSettings.includeSymbols = includeSymbols
+        appliedSettings.uppercaseSelections = uppercaseSelections
+        appliedSettings.lowercaseSelections = lowercaseSelections
+        appliedSettings.digitSelections = digitSelections
+        appliedSettings.selectAllSymbols = selectAllSymbols
+        appliedSettings.symbols = symbols
+        appliedSettings.length = length
+        appliedSettings.count = count
+        appliedSettings.minimumUppercase = minimumUppercase
+        appliedSettings.minimumLowercase = minimumLowercase
+        appliedSettings.minimumDigits = minimumDigits
+        appliedSettings.minimumSymbols = minimumSymbols
+        appliedSettings.generationMode = generationMode
+        appliedSettings.excludeSimilar = excludeSimilar
+        appliedSettings.requireEachSelectedType = requireEachSelectedType
+        appliedSettings.firstCharacterMode = firstCharacterMode
+        appliedSettings.maxConsecutiveRun = maxConsecutiveRun
+        appliedSettings.excludedCharacters = excludedCharacters
+
+        switch firstCharacterMode {
+        case .characterSet:
+            appliedSettings.allowUppercaseFirst = allowUppercaseFirst ?? NativePasswordSettings.defaultSettings.allowUppercaseFirst
+            appliedSettings.allowLowercaseFirst = allowLowercaseFirst ?? NativePasswordSettings.defaultSettings.allowLowercaseFirst
+            appliedSettings.allowDigitsFirst = allowDigitsFirst ?? NativePasswordSettings.defaultSettings.allowDigitsFirst
+            appliedSettings.allowSymbolsFirst = allowSymbolsFirst ?? NativePasswordSettings.defaultSettings.allowSymbolsFirst
+            appliedSettings.fixedPrefix = NativePasswordSettings.defaultSettings.fixedPrefix
+        case .fixedPrefix:
+            appliedSettings.allowUppercaseFirst = NativePasswordSettings.defaultSettings.allowUppercaseFirst
+            appliedSettings.allowLowercaseFirst = NativePasswordSettings.defaultSettings.allowLowercaseFirst
+            appliedSettings.allowDigitsFirst = NativePasswordSettings.defaultSettings.allowDigitsFirst
+            appliedSettings.allowSymbolsFirst = NativePasswordSettings.defaultSettings.allowSymbolsFirst
+            appliedSettings.fixedPrefix = fixedPrefix ?? NativePasswordSettings.defaultSettings.fixedPrefix
+        }
+
+        return appliedSettings
     }
 }
 

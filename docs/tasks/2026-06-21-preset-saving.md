@@ -10,17 +10,17 @@
 
 ## 作業タスク
 
-- [ ] `NativePasswordGeneratorViewModel` にプリセット一覧、入力名、選択中 ID、保存ステータスを追加する。
-- [ ] プリセット永続化用の `Codable` 型と `UserDefaults` 保存/復元処理を追加する。
-- [ ] `NativePasswordSettings` からプリセット保存用スナップショットを作る処理を追加する。
-- [ ] 先頭文字設定は選択中モードに必要な値だけ保存する。
-- [ ] プリセット選択時に設定、数値入力文字列、派生状態、現在設定保存を同期する。
-- [ ] 左カラム上部に名前入力欄と保存ボタンを追加する。
-- [ ] 左カラム下部に保存済みプリセット一覧を表示する。
-- [ ] 選択中プリセットの見た目をテーマ色で区別する。
-- [ ] 空状態、保存完了、入力エラー、保存エラーの表示を追加する。
-- [ ] README にプリセット保存の概要を追記する。
-- [ ] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
+- [x] `NativePasswordGeneratorViewModel` にプリセット一覧、入力名、選択中 ID、保存ステータスを追加する。
+- [x] プリセット永続化用の `Codable` 型と `UserDefaults` 保存/復元処理を追加する。
+- [x] `NativePasswordSettings` からプリセット保存用スナップショットを作る処理を追加する。
+- [x] 先頭文字設定は選択中モードに必要な値だけ保存する。
+- [x] プリセット選択時に設定、数値入力文字列、派生状態、現在設定保存を同期する。
+- [x] 左カラム上部に名前入力欄と保存ボタンを追加する。
+- [x] 左カラム下部に保存済みプリセット一覧を表示する。
+- [x] 選択中プリセットの見た目をテーマ色で区別する。
+- [x] 空状態、保存完了、入力エラー、保存エラーの表示を追加する。
+- [x] README にプリセット保存の概要を追記する。
+- [x] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
 
 ## 完了条件
 
