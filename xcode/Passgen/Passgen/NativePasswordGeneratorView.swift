@@ -2678,16 +2678,6 @@ private struct NativePasswordRow: View {
                             Capsule()
                                 .fill(palette.accent.opacity(0.12))
                         )
-
-                    Text("Pattern \(formatNumber(password.analysis.patternScore * 100))%")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(password.analysis.patternScore < 0.82 ? palette.danger : palette.accentStrong)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule()
-                                .fill(password.analysis.patternScore < 0.82 ? palette.danger.opacity(0.12) : palette.accent.opacity(0.12))
-                        )
                 }
 
                 Text(password.analysis.warningDetail)

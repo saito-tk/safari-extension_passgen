@@ -10,9 +10,9 @@
 
 ## 作業タスク
 
-- [ ] 生成結果行から `Pattern` バッジを削除する。
-- [ ] パターン検出ロジックと補助メッセージ表示は維持する。
-- [ ] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
+- [x] 生成結果行から `Pattern` バッジを削除する。
+- [x] パターン検出ロジックと補助メッセージ表示は維持する。
+- [x] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
 
 ## 完了条件
 
