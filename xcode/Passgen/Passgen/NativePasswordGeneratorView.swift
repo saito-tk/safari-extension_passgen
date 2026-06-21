@@ -9,6 +9,7 @@ import AppKit
 import Combine
 import Security
 import SwiftUI
+import UniformTypeIdentifiers
 
 private let nativeSymbolOptions: [NativeSymbolOption] = [
     .init(label: "-", description: "ハイフン", value: "-"),
@@ -756,6 +757,26 @@ struct NativePasswordGeneratorView: View {
                 }
 
                 Spacer(minLength: 0)
+
+                Button {
+                    viewModel.exportResultsAsText()
+                } label: {
+                    Label("テキスト出力", systemImage: "square.and.arrow.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(viewModel.canExportResults ? palette.accentStrong : palette.disabledText)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(viewModel.canExportResults ? palette.accentSoft : palette.disabledBackground)
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(palette.panelBorder, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!viewModel.canExportResults)
             }
 
             StatusMessageView(status: viewModel.resultStatus, palette: palette)
@@ -922,6 +943,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     var progressText: String {
         "(\(progressCompleted)/\(progressTotal))"
+    }
+
+    var canExportResults: Bool {
+        !results.isEmpty && !isGenerating
     }
 
     func toggleSavedSettingsSidebar() {
@@ -1186,6 +1211,37 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
 
         copyToPasteboard(value)
+    }
+
+    func exportResultsAsText() {
+        guard canExportResults else {
+            return
+        }
+
+        let text = results.compactMap { generatedPasswordStore[$0.id] }.joined(separator: "\n")
+        guard !text.isEmpty else {
+            return
+        }
+
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.canCreateDirectories = true
+        savePanel.isExtensionHidden = false
+        savePanel.nameFieldStringValue = "passgen-results.txt"
+        savePanel.title = "生成結果を書き出す"
+        savePanel.message = "生成したすべてのパスワードをテキストファイルとして保存します。"
+
+        let response = savePanel.runModal()
+        guard response == .OK, let url = savePanel.url else {
+            return
+        }
+
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            resultStatus = NativeInlineStatus(message: "生成したすべてのパスワードをテキスト出力しました。")
+        } catch {
+            resultStatus = NativeInlineStatus(message: "テキスト出力に失敗しました。保存先を確認してください。", tone: .error)
+        }
     }
 
     private func validateSettings() -> String? {
