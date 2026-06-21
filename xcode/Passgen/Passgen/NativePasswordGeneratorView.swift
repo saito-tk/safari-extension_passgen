@@ -2580,11 +2580,13 @@ struct NativeGeneratedPasswordListItem: Identifiable {
 
 struct NativePasswordAnalysis {
     let entropy: Double
+    let adjustedEntropy: Double
     let charsetSize: Int
     let expectedDistinctCount: Double
     let actualDistinctCount: Int
     let variety: Double
     let balance: Double
+    let patternScore: Double
     let warnings: [String]
 
     nonisolated init(password: String, entropy: Double, charsetSize: Int) {
@@ -2592,6 +2594,10 @@ struct NativePasswordAnalysis {
         let expectedDistinctCount = getExpectedDistinctCount(charsetSize: charsetSize, length: password.count)
         let variety = min(1, Double(actualDistinctCount) / max(expectedDistinctCount, 1))
         let balance = getBalanceScore(password)
+        let patternFindings = getPasswordPatternFindings(password)
+        let patternPenalty = min(0.72, patternFindings.reduce(0.0) { $0 + $1.penalty })
+        let patternScore = max(0.28, 1 - patternPenalty)
+        let adjustedEntropy = entropy * patternScore
         var warnings: [String] = []
 
         if entropy < 60 {
@@ -2603,16 +2609,25 @@ struct NativePasswordAnalysis {
         if balance < 0.82 {
             warnings.append("一部の文字に偏りがあります")
         }
+        if !patternFindings.isEmpty {
+            let patternMessages = patternFindings.map(\.message).joined(separator: "、")
+            warnings.append("推測されやすいパターン: \(patternMessages)")
+        }
+        if entropy >= 60 && adjustedEntropy < 60 {
+            warnings.append("パターンを加味すると弱めです")
+        }
         if warnings.isEmpty {
             warnings.append("この文字数では自然なばらつきです")
         }
 
         self.entropy = entropy
+        self.adjustedEntropy = adjustedEntropy
         self.charsetSize = charsetSize
         self.expectedDistinctCount = expectedDistinctCount
         self.actualDistinctCount = actualDistinctCount
         self.variety = variety
         self.balance = balance
+        self.patternScore = patternScore
         self.warnings = warnings
     }
 
@@ -2662,6 +2677,16 @@ private struct NativePasswordRow: View {
                         .background(
                             Capsule()
                                 .fill(palette.accent.opacity(0.12))
+                        )
+
+                    Text("Pattern \(formatNumber(password.analysis.patternScore * 100))%")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(password.analysis.patternScore < 0.82 ? palette.danger : palette.accentStrong)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule()
+                                .fill(password.analysis.patternScore < 0.82 ? palette.danger.opacity(0.12) : palette.accent.opacity(0.12))
                         )
                 }
 
@@ -3270,7 +3295,234 @@ private struct SecureRandomNumberGenerator: RandomNumberGenerator {
     }
 }
 
-private func estimateEntropy(charsetSize: Int, length: Int) -> Double {
+private struct NativePasswordPatternFinding {
+    let message: String
+    let penalty: Double
+}
+
+private nonisolated func getPasswordPatternFindings(_ password: String) -> [NativePasswordPatternFinding] {
+    let lowercasePassword = password.lowercased()
+    let foldedPassword = foldPasswordForPatternMatching(lowercasePassword)
+    guard !lowercasePassword.isEmpty else {
+        return []
+    }
+
+    var findings: [NativePasswordPatternFinding] = []
+
+    if containsCommonPasswordWord(foldedPassword) {
+        findings.append(NativePasswordPatternFinding(message: "よく使われる単語", penalty: 0.2))
+    }
+    if containsSequentialRun(lowercasePassword, minimumLength: 3) {
+        findings.append(NativePasswordPatternFinding(message: "連続文字列", penalty: 0.16))
+    }
+    if containsKeyboardRun(lowercasePassword, minimumLength: 4) {
+        findings.append(NativePasswordPatternFinding(message: "キーボード配列", penalty: 0.18))
+    }
+    if containsRepeatedCharacterRun(lowercasePassword, minimumLength: 4) {
+        findings.append(NativePasswordPatternFinding(message: "同一文字の繰り返し", penalty: 0.14))
+    }
+    if containsRepeatedBlock(lowercasePassword) {
+        findings.append(NativePasswordPatternFinding(message: "短いブロックの繰り返し", penalty: 0.18))
+    }
+    if containsDateLikeDigits(lowercasePassword) {
+        findings.append(NativePasswordPatternFinding(message: "日付らしい数字", penalty: 0.14))
+    }
+
+    return findings
+}
+
+private nonisolated func foldPasswordForPatternMatching(_ password: String) -> String {
+    let replacements: [Character: Character] = [
+        "0": "o",
+        "1": "l",
+        "3": "e",
+        "4": "a",
+        "5": "s",
+        "7": "t",
+        "@": "a",
+        "$": "s"
+    ]
+
+    return String(password.lowercased().map { replacements[$0] ?? $0 })
+}
+
+private nonisolated func containsCommonPasswordWord(_ password: String) -> Bool {
+    let compactPassword = password.filter { $0.isLetter || $0.isNumber }
+    let words = [
+        "password",
+        "pass",
+        "admin",
+        "administrator",
+        "welcome",
+        "login",
+        "user",
+        "root",
+        "secret",
+        "letmein",
+        "iloveyou",
+        "dragon",
+        "monkey",
+        "master",
+        "passgen",
+        "safari",
+        "apple"
+    ]
+
+    return words.contains { compactPassword.contains($0) }
+}
+
+private nonisolated func containsSequentialRun(_ password: String, minimumLength: Int) -> Bool {
+    let scalars = Array(password.unicodeScalars)
+    guard scalars.count >= minimumLength else {
+        return false
+    }
+
+    var ascendingLength = 1
+    var descendingLength = 1
+
+    for index in 1..<scalars.count {
+        let previous = scalars[index - 1]
+        let current = scalars[index]
+        let isComparable = isASCIILetterOrDigit(previous) && isASCIILetterOrDigit(current)
+
+        if isComparable && current.value == previous.value + 1 {
+            ascendingLength += 1
+        } else {
+            ascendingLength = 1
+        }
+
+        if isComparable && previous.value == current.value + 1 {
+            descendingLength += 1
+        } else {
+            descendingLength = 1
+        }
+
+        if ascendingLength >= minimumLength || descendingLength >= minimumLength {
+            return true
+        }
+    }
+
+    return false
+}
+
+private nonisolated func isASCIILetterOrDigit(_ scalar: UnicodeScalar) -> Bool {
+    (48...57).contains(scalar.value) || (97...122).contains(scalar.value)
+}
+
+private nonisolated func containsKeyboardRun(_ password: String, minimumLength: Int) -> Bool {
+    let rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm", "1234567890"]
+
+    for row in rows {
+        let rowCharacters = Array(row)
+        guard rowCharacters.count >= minimumLength else {
+            continue
+        }
+
+        for length in minimumLength...rowCharacters.count {
+            for startIndex in 0...(rowCharacters.count - length) {
+                let segment = String(rowCharacters[startIndex..<(startIndex + length)])
+                if password.contains(segment) || password.contains(String(segment.reversed())) {
+                    return true
+                }
+            }
+        }
+    }
+
+    return false
+}
+
+private nonisolated func containsRepeatedCharacterRun(_ password: String, minimumLength: Int) -> Bool {
+    let characters = Array(password)
+    guard characters.count >= minimumLength else {
+        return false
+    }
+
+    var runLength = 1
+    for index in 1..<characters.count {
+        if characters[index] == characters[index - 1] {
+            runLength += 1
+        } else {
+            runLength = 1
+        }
+
+        if runLength >= minimumLength {
+            return true
+        }
+    }
+
+    return false
+}
+
+private nonisolated func containsRepeatedBlock(_ password: String) -> Bool {
+    let characters = Array(password)
+    guard characters.count >= 6 else {
+        return false
+    }
+
+    for blockLength in 2...4 where characters.count >= blockLength * 3 {
+        for startIndex in 0...(characters.count - blockLength * 3) {
+            let block = Array(characters[startIndex..<(startIndex + blockLength)])
+            var repeatCount = 1
+            var nextStart = startIndex + blockLength
+
+            while nextStart + blockLength <= characters.count {
+                let nextBlock = Array(characters[nextStart..<(nextStart + blockLength)])
+                guard nextBlock == block else {
+                    break
+                }
+
+                repeatCount += 1
+                if repeatCount >= 3 {
+                    return true
+                }
+
+                nextStart += blockLength
+            }
+        }
+    }
+
+    return false
+}
+
+private nonisolated func containsDateLikeDigits(_ password: String) -> Bool {
+    let digitRuns = password.split { !$0.isNumber }.map(String.init)
+
+    for run in digitRuns where run.count >= 6 {
+        let digits = Array(run)
+
+        if digits.count >= 8 {
+            for startIndex in 0...(digits.count - 8) {
+                if isValidDateDigits(String(digits[startIndex..<(startIndex + 8)]), yearLength: 4) {
+                    return true
+                }
+            }
+        }
+
+        for startIndex in 0...(digits.count - 6) {
+            if isValidDateDigits(String(digits[startIndex..<(startIndex + 6)]), yearLength: 2) {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
+private nonisolated func isValidDateDigits(_ digits: String, yearLength: Int) -> Bool {
+    let characters = Array(digits)
+    let monthStart = yearLength
+    let dayStart = yearLength + 2
+
+    guard characters.count == yearLength + 4,
+          let month = Int(String(characters[monthStart..<dayStart])),
+          let day = Int(String(characters[dayStart..<(dayStart + 2)])) else {
+        return false
+    }
+
+    return (1...12).contains(month) && (1...31).contains(day)
+}
+
+private nonisolated func estimateEntropy(charsetSize: Int, length: Int) -> Double {
     guard charsetSize > 0 else {
         return 0
     }
@@ -3278,11 +3530,11 @@ private func estimateEntropy(charsetSize: Int, length: Int) -> Double {
     return (Double(length) * log2(Double(charsetSize)) * 10).rounded() / 10
 }
 
-private func getDistinctCharacterCount(_ password: String) -> Int {
+private nonisolated func getDistinctCharacterCount(_ password: String) -> Int {
     Set(password.map(String.init)).count
 }
 
-private func getExpectedDistinctCount(charsetSize: Int, length: Int) -> Double {
+private nonisolated func getExpectedDistinctCount(charsetSize: Int, length: Int) -> Double {
     guard charsetSize > 0, length > 0 else {
         return 0
     }
@@ -3292,7 +3544,7 @@ private func getExpectedDistinctCount(charsetSize: Int, length: Int) -> Double {
     return charsetSizeDouble * (1 - remainingProbability)
 }
 
-private func getBalanceScore(_ password: String) -> Double {
+private nonisolated func getBalanceScore(_ password: String) -> Double {
     guard !password.isEmpty else {
         return 0
     }

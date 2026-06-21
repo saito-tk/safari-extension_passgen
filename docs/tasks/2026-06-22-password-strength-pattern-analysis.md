@@ -10,12 +10,13 @@
 
 ## 作業タスク
 
-- [ ] 既存の entropy、variety、balance 評価を維持する。
-- [ ] よく使われる単語、連続文字列、キーボード配列、繰り返し、日付らしい数値列を検出する。
-- [ ] 検出したパターンを強度スコアへ反映する。
-- [ ] 検出したパターンを補助メッセージへ表示する。
-- [ ] README の強度表示説明を更新する。
-- [ ] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
+- [x] 既存の entropy、variety、balance 評価を維持する。
+- [x] よく使われる単語、連続文字列、キーボード配列、繰り返し、日付らしい数値列を検出する。
+- [x] 検出したパターンを強度スコアへ反映する。
+- [x] パターン検出による減点の目安を `Pattern` 指標として表示する。
+- [x] 検出したパターンを補助メッセージへ表示する。
+- [x] README の強度表示説明を更新する。
+- [x] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
 
 ## 完了条件
 
