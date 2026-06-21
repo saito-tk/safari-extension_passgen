@@ -64,6 +64,7 @@ struct NativePasswordGeneratorView: View {
     @FocusState private var focusedField: NativeFocusedField?
     @State private var activeCharacterTab: NativeCharacterTab = .uppercase
     @State private var presetPendingDeletion: NativePasswordPreset?
+    @State private var isStrengthHelpPresented = false
 
     init(viewModel: NativePasswordGeneratorViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -928,6 +929,21 @@ struct NativePasswordGeneratorView: View {
                         Text(viewModel.progressText)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(palette.accentStrong)
+
+                        Button {
+                            isStrengthHelpPresented.toggle()
+                        } label: {
+                            Image(systemName: "questionmark.circle")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(palette.accentStrong)
+                                .frame(width: 24, height: 24)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("強度評価の説明")
+                        .popover(isPresented: $isStrengthHelpPresented, arrowEdge: .top) {
+                            strengthHelpPopover(palette: palette)
+                        }
                     }
 
                     Text("コピーボタンでクリップボードへ保存")
@@ -985,6 +1001,43 @@ struct NativePasswordGeneratorView: View {
         }
         .padding(18)
         .nativeCardStyle(palette: palette)
+    }
+
+    private func strengthHelpPopover(palette: NativeThemePalette) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("強度評価について")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(palette.ink)
+
+            VStack(alignment: .leading, spacing: 8) {
+                strengthHelpRow(title: "総合評価", detail: "S から F の6段階で、複数の観点をまとめて判断します。", palette: palette)
+                strengthHelpRow(title: "評価軸", detail: "長さ、総当たり耐性、文字の広さ、既知リスク、推測されにくさを見ます。", palette: palette)
+                strengthHelpRow(title: "長さ", detail: "NIST/OWASP を参考に、15文字以上を重視します。", palette: palette)
+                strengthHelpRow(title: "文字種", detail: "大文字・小文字・数字・記号の混在は必須条件ではなく、探索空間の広さとして扱います。", palette: palette)
+                strengthHelpRow(title: "漏洩安全性", detail: "オンライン照合は行わず、アプリ内の軽量 blocklist とパターン検出による目安です。", palette: palette)
+            }
+
+            Text("判定は目安です。重要な用途では、十分な長さを優先してください。")
+                .font(.system(size: 11))
+                .foregroundStyle(palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(width: 340, alignment: .leading)
+        .background(palette.surface)
+    }
+
+    private func strengthHelpRow(title: String, detail: String, palette: NativeThemePalette) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(palette.accentStrong)
+
+            Text(detail)
+                .font(.system(size: 12))
+                .foregroundStyle(palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func numericFieldCard(label: String, text: Binding<String>, focus: NativeFocusedField, palette: NativeThemePalette) -> some View {

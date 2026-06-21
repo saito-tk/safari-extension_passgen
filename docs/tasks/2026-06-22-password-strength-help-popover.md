@@ -10,11 +10,11 @@
 
 ## 作業タスク
 
-- [ ] `生成結果` と進捗表示の近くに `?` アイコンボタンを追加する。
-- [ ] `?` アイコンボタンのクリックで強度評価説明のポップオーバーを表示する。
-- [ ] tips には総合評価と評価軸、15 文字基準、文字種混在を必須にしない方針、漏洩 DB オンライン照合をしない制約を含める。
-- [ ] 既存の生成、コピー、テキスト出力の挙動を変えない。
-- [ ] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
+- [x] `生成結果` と進捗表示の近くに `?` アイコンボタンを追加する。
+- [x] `?` アイコンボタンのクリックで強度評価説明のポップオーバーを表示する。
+- [x] tips には総合評価と評価軸、15 文字基準、文字種混在を必須にしない方針、漏洩 DB オンライン照合をしない制約を含める。
+- [x] 既存の生成、コピー、テキスト出力の挙動を変えない。
+- [x] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
 
 ## 完了条件
 
