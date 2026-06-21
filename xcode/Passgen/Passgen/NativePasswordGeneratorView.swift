@@ -986,6 +986,10 @@ struct NativePasswordGeneratorView: View {
 
                 Spacer(minLength: 0)
             } else {
+                if viewModel.hasTruncatedResults {
+                    truncatedResultsNotice(palette: palette)
+                }
+
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
                         ForEach(viewModel.results) { password in
@@ -1004,27 +1008,93 @@ struct NativePasswordGeneratorView: View {
     }
 
     private func strengthHelpPopover(palette: NativeThemePalette) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("強度評価について")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(palette.ink)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("強度評価について")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(palette.ink)
 
-            VStack(alignment: .leading, spacing: 8) {
-                strengthHelpRow(title: "総合評価", detail: "S から F の6段階で、複数の観点をまとめて判断します。", palette: palette)
-                strengthHelpRow(title: "評価軸", detail: "長さ、総当たり耐性、文字の広さ、既知リスク、推測されにくさを見ます。", palette: palette)
-                strengthHelpRow(title: "長さ", detail: "NIST/OWASP を参考に、15文字以上を重視します。", palette: palette)
-                strengthHelpRow(title: "文字種", detail: "大文字・小文字・数字・記号の混在は必須条件ではなく、探索空間の広さとして扱います。", palette: palette)
-                strengthHelpRow(title: "既知リスク", detail: "オンライン照合は行わず、アプリ内の軽量 blocklist とパターン検出による目安です。", palette: palette)
+                strengthHelpSection(
+                    title: "表示ラベル",
+                    rows: [
+                        ("総合", "各評価軸を重み付けした最終評価です。"),
+                        ("bits", "文字セットサイズと文字数から見積もった総当たり耐性です。"),
+                        ("長さ", "文字数そのものの評価です。"),
+                        ("耐性", "総当たり耐性。推定 bits を S-F で評価します。"),
+                        ("広さ", "文字の広さ。使える文字セットの広さを見ます。"),
+                        ("既知", "既知リスク。弱い候補や単純変形に近いかを見ます。"),
+                        ("推測", "推測されにくさ。連番、日付、繰り返しなどを見ます。")
+                    ],
+                    palette: palette
+                )
+
+                strengthHelpSection(
+                    title: "主な基準",
+                    rows: [
+                        ("長さ", "15文字以上を重視し、24文字以上を S とします。"),
+                        ("耐性", "128 bits 以上を S、100 bits 以上を A とします。"),
+                        ("広さ", "文字種の混在を必須にせず、探索空間の広さとして扱います。"),
+                        ("既知", "オンライン照合は行わず、ローカル blocklist の全体一致や単純派生を見ます。"),
+                        ("推測", "短い偶発一致ではなく、パターンが全体に占める割合を見ます。")
+                    ],
+                    palette: palette
+                )
+
+                strengthHelpSection(
+                    title: "グレード",
+                    rows: [
+                        ("S", "十分に強い、または問題となる兆候がない状態です。"),
+                        ("A", "強いが、補助軸で軽微な注意点がある状態です。"),
+                        ("B/C", "一部の軸で改善余地があります。短い用途や重要用途では見直し推奨です。"),
+                        ("D/F", "短い、推測されやすい、既知の弱い候補に近いなど、使用を避けたい状態です。")
+                    ],
+                    palette: palette
+                )
+
+                Text("判定は目安です。重要な用途では、十分な長さを優先してください。コピーとテキスト出力には省略前の全文字列を使います。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(16)
+        }
+        .frame(width: 440, height: 520, alignment: .leading)
+        .background(palette.surface)
+    }
 
-            Text("判定は目安です。重要な用途では、十分な長さを優先してください。")
+    private func truncatedResultsNotice(palette: NativeThemePalette) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "text.alignleft")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(palette.accentStrong)
+
+            Text("一覧表示は各パスワード先頭 \(formatNumber(100)) 文字までです。コピーとテキスト出力は全文字列を使用します。")
                 .font(.system(size: 11))
                 .foregroundStyle(palette.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(16)
-        .frame(width: 340, alignment: .leading)
-        .background(palette.surface)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(palette.surfaceStrong)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(palette.panelBorder, lineWidth: 1)
+        )
+    }
+
+    private func strengthHelpSection(title: String, rows: [(String, String)], palette: NativeThemePalette) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(palette.ink)
+
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                strengthHelpRow(title: row.0, detail: row.1, palette: palette)
+            }
+        }
     }
 
     private func strengthHelpRow(title: String, detail: String, palette: NativeThemePalette) -> some View {
@@ -1208,6 +1278,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     var canExportResults: Bool {
         !results.isEmpty && !isGenerating
+    }
+
+    var hasTruncatedResults: Bool {
+        results.contains { $0.isTruncated }
     }
 
     var sortedPresets: [NativePasswordPreset] {
@@ -2617,17 +2691,17 @@ struct NativeGeneratedPassword: Identifiable {
 struct NativeGeneratedPasswordListItem: Identifiable {
     let id: UUID
     let displayValue: String
-    let note: String
+    let isTruncated: Bool
     let analysis: NativePasswordAnalysis
 
     nonisolated init(password: NativeGeneratedPassword) {
         id = password.id
         if password.value.count <= 100 {
             displayValue = password.value
-            note = ""
+            isTruncated = false
         } else {
             displayValue = String(password.value.prefix(100)) + "..."
-            note = "表示は先頭 \(formatNumber(100)) 文字までです。実際の文字数は \(formatNumber(password.value.count)) 文字です。"
+            isTruncated = true
         }
 
         analysis = NativePasswordAnalysis(password: password.value, entropy: password.entropy, charsetSize: password.charsetSize, categoryCount: password.categoryCount)
@@ -2681,7 +2755,7 @@ struct NativePasswordAnalysis {
         let lengthGrade = getLengthGrade(length: password.count)
         let bruteForceGrade = getEntropyGrade(entropy)
         let breadthGrade = getBreadthGrade(charsetSize: charsetSize, categoryCount: categoryCount)
-        let knownRiskGrade = getKnownRiskGrade(password: password, patternFindings: patternFindings)
+        let knownRiskGrade = getKnownRiskGrade(password: password)
         let guessabilityGrade = getGuessabilityGrade(patternFindings: patternFindings)
         let overallGrade = getOverallPasswordGrade(
             lengthGrade: lengthGrade,
@@ -2728,12 +2802,6 @@ private struct NativePasswordRow: View {
             VStack(alignment: .leading, spacing: 5) {
                 NativePasswordPreviewLabel(text: password.displayValue, textColor: NSColor(palette.ink))
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                if !password.note.isEmpty {
-                    Text(password.note)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(palette.accent)
-                }
 
                 compactStrengthSummary
 
@@ -3529,27 +3597,22 @@ private nonisolated func getBreadthGrade(charsetSize: Int, categoryCount: Int) -
     return .f
 }
 
-private nonisolated func getKnownRiskGrade(password: String, patternFindings: [NativePasswordPatternFinding]) -> NativePasswordGrade {
+private nonisolated func getKnownRiskGrade(password: String) -> NativePasswordGrade {
     if isBlockedPassword(password) {
         return .f
     }
 
-    let foldedPassword = foldPasswordForPatternMatching(password.lowercased())
-    if containsCommonPasswordWord(foldedPassword) {
-        if password.count >= 20 {
-            return .b
-        }
-        if password.count >= 15 {
-            return .c
-        }
+    let normalizedPassword = normalizePasswordForRisk(password)
+    if isSimpleWeakPasswordDerivative(normalizedPassword) {
         return .d
     }
 
-    if patternFindings.contains(where: { $0.message == "日付らしい数字" }) {
-        return .c
+    let commonWordCoverage = getCommonPasswordWordCoverage(normalizedPassword)
+    guard commonWordCoverage > 0 else {
+        return .s
     }
 
-    return .s
+    return getGradeForCommonWordCoverage(commonWordCoverage, normalizedLength: normalizedPassword.count)
 }
 
 private nonisolated func getGuessabilityGrade(patternFindings: [NativePasswordPatternFinding]) -> NativePasswordGrade {
@@ -3557,21 +3620,158 @@ private nonisolated func getGuessabilityGrade(patternFindings: [NativePasswordPa
         return .s
     }
 
-    let penalty = patternFindings.reduce(0.0) { $0 + $1.penalty }
-    if patternFindings.count >= 4 || penalty >= 0.6 {
+    let maxCoverage = patternFindings.map(\.coverage).max() ?? 0
+    let combinedCoverage = min(1, patternFindings.reduce(0.0) { $0 + $1.coverage })
+
+    return getMeaningfulPatternGrade(maxCoverage: maxCoverage, combinedCoverage: combinedCoverage)
+}
+
+private nonisolated func getMeaningfulPatternGrade(maxCoverage: Double, combinedCoverage: Double) -> NativePasswordGrade {
+    if maxCoverage >= 0.85 || combinedCoverage >= 0.95 {
         return .f
     }
-    if patternFindings.count >= 3 || penalty >= 0.45 {
+    if maxCoverage >= 0.65 || combinedCoverage >= 0.8 {
         return .d
     }
-    if patternFindings.count >= 2 || penalty >= 0.3 {
+    if maxCoverage >= 0.45 || combinedCoverage >= 0.6 {
         return .c
     }
-    if penalty >= 0.18 {
+    if maxCoverage >= 0.25 || combinedCoverage >= 0.35 {
         return .b
     }
 
     return .a
+}
+
+private nonisolated func getCommonPasswordWordCoverage(_ normalizedPassword: String) -> Double {
+    guard !normalizedPassword.isEmpty else {
+        return 0
+    }
+
+    let matchLength = getLongestCommonPasswordWordMatchLength(normalizedPassword)
+    return Double(matchLength) / Double(normalizedPassword.count)
+}
+
+private nonisolated func isSimpleWeakPasswordDerivative(_ normalizedPassword: String) -> Bool {
+    guard !normalizedPassword.isEmpty else {
+        return false
+    }
+
+    for blockedPassword in getNativePasswordBlocklist() {
+        guard blockedPassword.count >= 4 else {
+            continue
+        }
+
+        if normalizedPassword.hasPrefix(blockedPassword) {
+            let suffix = String(normalizedPassword.dropFirst(blockedPassword.count))
+            if isSimpleNumericPadding(suffix) {
+                return true
+            }
+        }
+
+        if normalizedPassword.hasSuffix(blockedPassword) {
+            let prefix = String(normalizedPassword.dropLast(blockedPassword.count))
+            if isSimpleNumericPadding(prefix) {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
+private nonisolated func isSimpleNumericPadding(_ value: String) -> Bool {
+    !value.isEmpty && value.count <= 4 && value.allSatisfy(\.isNumber)
+}
+
+private nonisolated func isMeaningfulPatternFinding(_ finding: NativePasswordPatternFinding) -> Bool {
+    if finding.coverage >= 0.25 {
+        return true
+    }
+    if finding.passwordLength <= 20 {
+        return finding.matchedLength >= 4
+    }
+    if finding.passwordLength <= 100 {
+        return finding.matchedLength >= 10 || finding.coverage >= 0.15
+    }
+
+    return finding.matchedLength >= 24 || finding.coverage >= 0.1
+}
+
+private nonisolated func makePatternFinding(message: String, penalty: Double, matchedLength: Int, passwordLength: Int) -> NativePasswordPatternFinding? {
+    guard matchedLength > 0 else {
+        return nil
+    }
+
+    let finding = NativePasswordPatternFinding(
+        message: message,
+        penalty: penalty,
+        matchedLength: matchedLength,
+        passwordLength: passwordLength
+    )
+
+    return isMeaningfulPatternFinding(finding) ? finding : nil
+}
+
+private nonisolated func getPatternFindingMessages(_ patternFindings: [NativePasswordPatternFinding]) -> String {
+    patternFindings.map(\.message).joined(separator: "、")
+}
+
+private nonisolated func getPatternFindingWarningMessage(_ patternFindings: [NativePasswordPatternFinding]) -> String {
+    "推測されやすいパターンを含みます: \(getPatternFindingMessages(patternFindings))"
+}
+
+private nonisolated func getKnownRiskMessage(_ knownRiskGrade: NativePasswordGrade) -> String? {
+    if isPasswordGrade(knownRiskGrade, atMost: .d) {
+        return "既知の弱いパスワードまたは単純変形に近いです。"
+    }
+    if isPasswordGrade(knownRiskGrade, atMost: .c) {
+        return "一般的な語句が大きな割合を占めます。"
+    }
+
+    return nil
+}
+
+private nonisolated func getLengthAndEntropyMessages(lengthGrade: NativePasswordGrade, bruteForceGrade: NativePasswordGrade) -> [String] {
+    var messages: [String] = []
+
+    if isPasswordGrade(lengthGrade, atMost: .d) {
+        messages.append("文字数が短めです。15文字以上を推奨します。")
+    }
+    if isPasswordGrade(bruteForceGrade, atMost: .d) {
+        messages.append("総当たり耐性が低めです。文字数を増やすと改善します。")
+    }
+
+    return messages
+}
+
+private nonisolated func getBreadthMessage(_ breadthGrade: NativePasswordGrade) -> String? {
+    if isPasswordGrade(breadthGrade, atMost: .d) {
+        return "文字セットが狭いため、同じ長さでも候補数が少なめです。"
+    }
+
+    return nil
+}
+
+private nonisolated func getPositivePasswordAnalysisMessage() -> String {
+    "十分に長く、推測されにくい生成結果です。"
+}
+
+private nonisolated func getGradeForCommonWordCoverage(_ coverage: Double, normalizedLength: Int) -> NativePasswordGrade {
+    if normalizedLength > 32 && coverage < 0.5 {
+        return .s
+    }
+    if coverage >= 0.7 {
+        return .c
+    }
+    if coverage >= 0.45 {
+        return .b
+    }
+    if coverage >= 0.25 {
+        return .a
+    }
+
+    return .s
 }
 
 private nonisolated func getOverallPasswordGrade(
@@ -3636,29 +3836,20 @@ private nonisolated func getPasswordAnalysisMessages(
     guessabilityGrade: NativePasswordGrade,
     patternFindings: [NativePasswordPatternFinding]
 ) -> [String] {
-    var messages: [String] = []
+    var messages = getLengthAndEntropyMessages(lengthGrade: lengthGrade, bruteForceGrade: bruteForceGrade)
 
-    if isPasswordGrade(lengthGrade, atMost: .d) {
-        messages.append("文字数が短めです。15文字以上を推奨します。")
-    }
-    if isPasswordGrade(bruteForceGrade, atMost: .d) {
-        messages.append("総当たり耐性が低めです。文字数を増やすと改善します。")
-    }
-    if isPasswordGrade(knownRiskGrade, atMost: .d) {
-        messages.append("既知の弱い語句を含みます。")
-    } else if isPasswordGrade(knownRiskGrade, atMost: .c) {
-        messages.append("一般的な語句や日付らしい数字を含みます。")
+    if let knownRiskMessage = getKnownRiskMessage(knownRiskGrade) {
+        messages.append(knownRiskMessage)
     }
     if isPasswordGrade(guessabilityGrade, atMost: .c), !patternFindings.isEmpty {
-        let patternMessages = patternFindings.map(\.message).joined(separator: "、")
-        messages.append("推測されやすいパターンを含みます: \(patternMessages)")
+        messages.append(getPatternFindingWarningMessage(patternFindings))
     }
-    if isPasswordGrade(breadthGrade, atMost: .d) {
-        messages.append("文字セットが狭いため、同じ長さでも候補数が少なめです。")
+    if let breadthMessage = getBreadthMessage(breadthGrade) {
+        messages.append(breadthMessage)
     }
 
     if messages.isEmpty {
-        return ["十分に長く、推測されにくい生成結果です。"]
+        return [getPositivePasswordAnalysisMessage()]
     }
 
     return Array(messages.prefix(3))
@@ -3667,34 +3858,75 @@ private nonisolated func getPasswordAnalysisMessages(
 private struct NativePasswordPatternFinding {
     let message: String
     let penalty: Double
+    let matchedLength: Int
+    let passwordLength: Int
+
+    nonisolated var coverage: Double {
+        guard passwordLength > 0 else {
+            return 0
+        }
+
+        return min(1, Double(matchedLength) / Double(passwordLength))
+    }
 }
 
 private nonisolated func getPasswordPatternFindings(_ password: String) -> [NativePasswordPatternFinding] {
     let lowercasePassword = password.lowercased()
-    let foldedPassword = foldPasswordForPatternMatching(lowercasePassword)
     guard !lowercasePassword.isEmpty else {
         return []
     }
 
+    let passwordLength = lowercasePassword.count
+    let normalizedPassword = normalizePasswordForRisk(lowercasePassword)
     var findings: [NativePasswordPatternFinding] = []
 
-    if containsCommonPasswordWord(foldedPassword) {
-        findings.append(NativePasswordPatternFinding(message: "よく使われる単語", penalty: 0.2))
+    if let finding = makePatternFinding(
+        message: "よく使われる単語",
+        penalty: 0.2,
+        matchedLength: getLongestCommonPasswordWordMatchLength(normalizedPassword),
+        passwordLength: passwordLength
+    ) {
+        findings.append(finding)
     }
-    if containsSequentialRun(lowercasePassword, minimumLength: 3) {
-        findings.append(NativePasswordPatternFinding(message: "連続文字列", penalty: 0.16))
+    if let finding = makePatternFinding(
+        message: "連続文字列",
+        penalty: 0.16,
+        matchedLength: getLongestSequentialRunLength(lowercasePassword),
+        passwordLength: passwordLength
+    ) {
+        findings.append(finding)
     }
-    if containsKeyboardRun(lowercasePassword, minimumLength: 4) {
-        findings.append(NativePasswordPatternFinding(message: "キーボード配列", penalty: 0.18))
+    if let finding = makePatternFinding(
+        message: "キーボード配列",
+        penalty: 0.18,
+        matchedLength: getLongestKeyboardRunLength(lowercasePassword),
+        passwordLength: passwordLength
+    ) {
+        findings.append(finding)
     }
-    if containsRepeatedCharacterRun(lowercasePassword, minimumLength: 4) {
-        findings.append(NativePasswordPatternFinding(message: "同一文字の繰り返し", penalty: 0.14))
+    if let finding = makePatternFinding(
+        message: "同一文字の繰り返し",
+        penalty: 0.14,
+        matchedLength: getLongestRepeatedCharacterRunLength(lowercasePassword),
+        passwordLength: passwordLength
+    ) {
+        findings.append(finding)
     }
-    if containsRepeatedBlock(lowercasePassword) {
-        findings.append(NativePasswordPatternFinding(message: "短いブロックの繰り返し", penalty: 0.18))
+    if let finding = makePatternFinding(
+        message: "短いブロックの繰り返し",
+        penalty: 0.18,
+        matchedLength: getLongestRepeatedBlockLength(lowercasePassword),
+        passwordLength: passwordLength
+    ) {
+        findings.append(finding)
     }
-    if containsDateLikeDigits(lowercasePassword) {
-        findings.append(NativePasswordPatternFinding(message: "日付らしい数字", penalty: 0.14))
+    if let finding = makePatternFinding(
+        message: "日付らしい数字",
+        penalty: 0.14,
+        matchedLength: getLongestDateLikeDigitsLength(lowercasePassword),
+        passwordLength: passwordLength
+    ) {
+        findings.append(finding)
     }
 
     return findings
@@ -3716,11 +3948,14 @@ private nonisolated func foldPasswordForPatternMatching(_ password: String) -> S
 }
 
 private nonisolated func isBlockedPassword(_ password: String) -> Bool {
-    let blocklist = Set([
+    getNativePasswordBlocklist().contains(normalizePasswordForRisk(password))
+}
+
+private nonisolated func getNativePasswordBlocklist() -> Set<String> {
+    Set([
         "password",
         "password1",
         "password123",
-        "passw0rd",
         "qwerty",
         "qwerty123",
         "admin",
@@ -3742,15 +3977,14 @@ private nonisolated func isBlockedPassword(_ password: String) -> Bool {
         "root",
         "secret"
     ])
-    let lowercasePassword = password.lowercased()
-    let compactPassword = lowercasePassword.filter { $0.isLetter || $0.isNumber }
-    let foldedPassword = foldPasswordForPatternMatching(lowercasePassword).filter { $0.isLetter || $0.isNumber }
-    return blocklist.contains(compactPassword) || blocklist.contains(foldedPassword)
 }
 
-private nonisolated func containsCommonPasswordWord(_ password: String) -> Bool {
-    let compactPassword = password.filter { $0.isLetter || $0.isNumber }
-    let words = [
+private nonisolated func normalizePasswordForRisk(_ password: String) -> String {
+    foldPasswordForPatternMatching(password).filter { $0.isLetter || $0.isNumber }
+}
+
+private nonisolated func getCommonPasswordWords() -> [String] {
+    [
         "password",
         "pass",
         "admin",
@@ -3769,16 +4003,22 @@ private nonisolated func containsCommonPasswordWord(_ password: String) -> Bool 
         "safari",
         "apple"
     ]
-
-    return words.contains { compactPassword.contains($0) }
 }
 
-private nonisolated func containsSequentialRun(_ password: String, minimumLength: Int) -> Bool {
+private nonisolated func getLongestCommonPasswordWordMatchLength(_ normalizedPassword: String) -> Int {
+    getCommonPasswordWords()
+        .filter { normalizedPassword.contains($0) }
+        .map(\.count)
+        .max() ?? 0
+}
+
+private nonisolated func getLongestSequentialRunLength(_ password: String) -> Int {
     let scalars = Array(password.unicodeScalars)
-    guard scalars.count >= minimumLength else {
-        return false
+    guard scalars.count >= 2 else {
+        return 0
     }
 
+    var longestRun = 0
     var ascendingLength = 1
     var descendingLength = 1
 
@@ -3799,68 +4039,63 @@ private nonisolated func containsSequentialRun(_ password: String, minimumLength
             descendingLength = 1
         }
 
-        if ascendingLength >= minimumLength || descendingLength >= minimumLength {
-            return true
-        }
+        longestRun = max(longestRun, ascendingLength, descendingLength)
     }
 
-    return false
+    return longestRun >= 4 ? longestRun : 0
 }
 
 private nonisolated func isASCIILetterOrDigit(_ scalar: UnicodeScalar) -> Bool {
     (48...57).contains(scalar.value) || (97...122).contains(scalar.value)
 }
 
-private nonisolated func containsKeyboardRun(_ password: String, minimumLength: Int) -> Bool {
+private nonisolated func getLongestKeyboardRunLength(_ password: String) -> Int {
     let rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm", "1234567890"]
+    var longestRun = 0
 
     for row in rows {
         let rowCharacters = Array(row)
-        guard rowCharacters.count >= minimumLength else {
-            continue
-        }
 
-        for length in minimumLength...rowCharacters.count {
+        for length in 4...rowCharacters.count {
             for startIndex in 0...(rowCharacters.count - length) {
                 let segment = String(rowCharacters[startIndex..<(startIndex + length)])
                 if password.contains(segment) || password.contains(String(segment.reversed())) {
-                    return true
+                    longestRun = max(longestRun, length)
                 }
             }
         }
     }
 
-    return false
+    return longestRun
 }
 
-private nonisolated func containsRepeatedCharacterRun(_ password: String, minimumLength: Int) -> Bool {
+private nonisolated func getLongestRepeatedCharacterRunLength(_ password: String) -> Int {
     let characters = Array(password)
-    guard characters.count >= minimumLength else {
-        return false
+    guard !characters.isEmpty else {
+        return 0
     }
 
     var runLength = 1
+    var longestRun = 1
     for index in 1..<characters.count {
         if characters[index] == characters[index - 1] {
             runLength += 1
+            longestRun = max(longestRun, runLength)
         } else {
             runLength = 1
         }
-
-        if runLength >= minimumLength {
-            return true
-        }
     }
 
-    return false
+    return longestRun >= 4 ? longestRun : 0
 }
 
-private nonisolated func containsRepeatedBlock(_ password: String) -> Bool {
+private nonisolated func getLongestRepeatedBlockLength(_ password: String) -> Int {
     let characters = Array(password)
     guard characters.count >= 6 else {
-        return false
+        return 0
     }
 
+    var longestRun = 0
     for blockLength in 2...4 where characters.count >= blockLength * 3 {
         for startIndex in 0...(characters.count - blockLength * 3) {
             let block = Array(characters[startIndex..<(startIndex + blockLength)])
@@ -3875,7 +4110,7 @@ private nonisolated func containsRepeatedBlock(_ password: String) -> Bool {
 
                 repeatCount += 1
                 if repeatCount >= 3 {
-                    return true
+                    longestRun = max(longestRun, repeatCount * blockLength)
                 }
 
                 nextStart += blockLength
@@ -3883,11 +4118,12 @@ private nonisolated func containsRepeatedBlock(_ password: String) -> Bool {
         }
     }
 
-    return false
+    return longestRun
 }
 
-private nonisolated func containsDateLikeDigits(_ password: String) -> Bool {
+private nonisolated func getLongestDateLikeDigitsLength(_ password: String) -> Int {
     let digitRuns = password.split { !$0.isNumber }.map(String.init)
+    var longestRun = 0
 
     for run in digitRuns where run.count >= 6 {
         let digits = Array(run)
@@ -3895,19 +4131,19 @@ private nonisolated func containsDateLikeDigits(_ password: String) -> Bool {
         if digits.count >= 8 {
             for startIndex in 0...(digits.count - 8) {
                 if isValidDateDigits(String(digits[startIndex..<(startIndex + 8)]), yearLength: 4) {
-                    return true
+                    longestRun = max(longestRun, 8)
                 }
             }
         }
 
         for startIndex in 0...(digits.count - 6) {
             if isValidDateDigits(String(digits[startIndex..<(startIndex + 6)]), yearLength: 2) {
-                return true
+                longestRun = max(longestRun, 6)
             }
         }
     }
 
-    return false
+    return longestRun
 }
 
 private nonisolated func isValidDateDigits(_ digits: String, yearLength: Int) -> Bool {
