@@ -1136,7 +1136,20 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     var canSavePreset: Bool {
-        !Self.sanitizePresetName(presetNameText).isEmpty && !isGenerating
+        guard !isGenerating else {
+            return false
+        }
+
+        let name = Self.sanitizePresetName(presetNameText)
+        guard !name.isEmpty else {
+            return false
+        }
+
+        guard let selectedPreset else {
+            return true
+        }
+
+        return name != selectedPreset.name || NativePasswordPresetSettings(settings: settings) != selectedPreset.settings
     }
 
     var usesRulePriorityMode: Bool {
@@ -1173,6 +1186,14 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                 return false
             }
         }
+    }
+
+    private var selectedPreset: NativePasswordPreset? {
+        guard let selectedPresetID else {
+            return nil
+        }
+
+        return presets.first { $0.id == selectedPresetID }
     }
 
     func toggleSavedSettingsSidebar() {
@@ -2427,7 +2448,7 @@ struct NativePasswordPreset: Codable, Identifiable {
     var settings: NativePasswordPresetSettings
 }
 
-struct NativePasswordPresetSettings: Codable {
+struct NativePasswordPresetSettings: Codable, Equatable {
     var uppercase: Bool
     var lowercase: Bool
     var digits: Bool

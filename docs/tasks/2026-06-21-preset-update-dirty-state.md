@@ -10,13 +10,13 @@
 
 ## 作業タスク
 
-- [ ] 選択中プリセットと現在のプリセット名入力の差分を判定する。
-- [ ] 選択中プリセットと現在設定から生成したプリセットスナップショットの差分を判定する。
-- [ ] プリセット選択中の `canSavePreset` を差分ありの場合だけ `true` にする。
-- [ ] プリセット未選択時の保存条件は従来どおり名前入力ありで維持する。
-- [ ] 更新後は更新後の保存内容を比較基準にする。
-- [ ] TODO に進捗を反映する。
-- [ ] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
+- [x] 選択中プリセットと現在のプリセット名入力の差分を判定する。
+- [x] 選択中プリセットと現在設定から生成したプリセットスナップショットの差分を判定する。
+- [x] プリセット選択中の `canSavePreset` を差分ありの場合だけ `true` にする。
+- [x] プリセット未選択時の保存条件は従来どおり名前入力ありで維持する。
+- [x] 更新後は更新後の保存内容を比較基準にする。
+- [x] TODO に進捗を反映する。
+- [x] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
 
 ## 完了条件
 
