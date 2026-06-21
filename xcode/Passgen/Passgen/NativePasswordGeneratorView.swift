@@ -1015,50 +1015,46 @@ struct NativePasswordGeneratorView: View {
                     .foregroundStyle(palette.ink)
 
                 strengthHelpSection(
-                    title: "表示ラベル",
+                    title: "結果行の読み方",
                     rows: [
-                        ("総合", "各評価軸を重み付けした最終評価です。"),
-                        ("bits", "文字セットサイズと文字数から見積もった総当たり耐性です。"),
-                        ("長さ", "文字数そのものの評価です。"),
-                        ("耐性", "総当たり耐性。推定 bits を S-F で評価します。"),
-                        ("広さ", "文字の広さ。使える文字セットの広さを見ます。"),
-                        ("既知", "既知リスク。弱い候補や単純変形に近いかを見ます。"),
-                        ("推測", "推測されにくさ。連番、日付、繰り返しなどを見ます。")
+                        ("総合", "長さと総当たり耐性を主軸にした最終評価です。警告がある場合は上限を下げます。"),
+                        ("長さ", "文字数の評価です。15文字以上を重視し、24文字以上を S とします。"),
+                        ("耐性", "総当たり耐性です。固定文字を除いたランダム部分の推定 bits を評価します。"),
+                        ("bits", "理論上の探索空間の目安です。値が大きいほど総当たりで破られにくくなります。"),
+                        ("条件", "生成に使える文字数とカテゴリ数です。文字種の混在を必須条件にはしません。")
                     ],
                     palette: palette
                 )
 
                 strengthHelpSection(
-                    title: "主な基準",
+                    title: "グレードの意味",
                     rows: [
-                        ("長さ", "15文字以上を重視し、24文字以上を S とします。"),
-                        ("耐性", "128 bits 以上を S、100 bits 以上を A とします。"),
-                        ("広さ", "文字種の混在を必須にせず、探索空間の広さとして扱います。"),
-                        ("既知", "blocklist の全体一致や単純派生を見ます。短い場合は未検出だけで S にしません。"),
-                        ("推測", "パターンが全体に占める割合を見ます。短い場合は未検出だけで S にしません。")
+                        ("S", "十分な長さと耐性があり、通常はそのまま使いやすい状態です。"),
+                        ("A", "強い状態です。より重要な用途では長さを増やす余地があります。"),
+                        ("B/C", "使える場面はありますが、重要な用途では長さや条件の見直しを推奨します。"),
+                        ("D/F", "短い、耐性が低い、または危険な特徴があります。使用を避けるか再生成してください。")
                     ],
                     palette: palette
                 )
 
                 strengthHelpSection(
-                    title: "グレード",
+                    title: "警告の扱い",
                     rows: [
-                        ("S", "十分に強い、または問題となる兆候がない状態です。"),
-                        ("A", "強いが、補助軸で軽微な注意点がある状態です。"),
-                        ("B/C", "一部の軸で改善余地があります。短い用途や重要用途では見直し推奨です。"),
-                        ("D/F", "短い、推測されやすい、既知の弱い候補に近いなど、使用を避けたい状態です。")
+                        ("既知リスク", "ローカル blocklist の全体一致や単純派生を見ます。未検出でも漏洩なしを保証しません。"),
+                        ("推測パターン", "連番、キーボード配列、日付、繰り返しなど、攻撃者が試しやすい構造を見ます。"),
+                        ("評価への反映", "問題がなければ加点せず、問題がある場合だけ総合評価の上限を下げます。")
                     ],
                     palette: palette
                 )
 
-                Text("判定は目安です。重要な用途では、十分な長さを優先してください。コピーとテキスト出力には省略前の全文字列を使います。")
+                Text("判定は目安です。オンライン漏洩照合は行いません。コピーとテキスト出力には省略前の全文字列を使います。")
                     .font(.system(size: 11))
                     .foregroundStyle(palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(16)
         }
-        .frame(width: 440, height: 520, alignment: .leading)
+        .frame(width: 460, height: 500, alignment: .leading)
         .background(palette.surface)
     }
 
@@ -2080,7 +2076,13 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         let password = passwordCharacters.joined()
         return NativeGeneratedPassword(
             value: password,
-            entropy: estimateEntropy(charsetSize: allCharacters.count, length: settings.length),
+            entropy: estimateRulePriorityEntropy(
+                settings: settings,
+                pools: pools,
+                allCharacters: allCharacters,
+                prefixLength: prefixCharacters.count,
+                allowedFirstPoolIDs: resolvedAllowedFirstPoolIDs
+            ),
             charsetSize: allCharacters.count,
             categoryCount: pools.count
         )
@@ -2112,6 +2114,29 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             charsetSize: characters.count,
             categoryCount: categoryCount
         )
+    }
+
+    private static func estimateRulePriorityEntropy(settings: NativePasswordSettings, pools: [NativeCharacterPool], allCharacters: [String], prefixLength: Int, allowedFirstPoolIDs: Set<String>) -> Double {
+        guard !allCharacters.isEmpty else {
+            return 0
+        }
+
+        switch settings.firstCharacterMode {
+        case .fixedPrefix:
+            return estimateEntropy(charsetSize: allCharacters.count, length: max(0, settings.length - prefixLength))
+        case .characterSet:
+            guard settings.length > 0 else {
+                return 0
+            }
+
+            let firstCharacterSetSize = combinePools(pools.filter { allowedFirstPoolIDs.contains($0.id) }).count
+            guard firstCharacterSetSize > 0 else {
+                return 0
+            }
+
+            let entropy = log2(Double(firstCharacterSetSize)) + Double(max(0, settings.length - 1)) * log2(Double(allCharacters.count))
+            return (entropy * 10).rounded() / 10
+        }
     }
 
     private static func buildPools(using settings: NativePasswordSettings) -> [NativeCharacterPool] {
@@ -2742,27 +2767,39 @@ struct NativePasswordGradeMetric: Identifiable {
     let grade: NativePasswordGrade
 }
 
+private enum NativePasswordRiskLevel: Int {
+    case none = 0
+    case minor = 1
+    case caution = 2
+    case warning = 3
+    case danger = 4
+}
+
+private struct NativePasswordRiskSignal {
+    let level: NativePasswordRiskLevel
+    let message: String?
+}
+
 struct NativePasswordAnalysis {
     let entropy: Double
     let charsetSize: Int
     let categoryCount: Int
     let overallGrade: NativePasswordGrade
     let metrics: [NativePasswordGradeMetric]
+    let conditionSummary: String
     let warnings: [String]
 
     nonisolated init(password: String, entropy: Double, charsetSize: Int, categoryCount: Int) {
         let patternFindings = getPasswordPatternFindings(password)
         let lengthGrade = getLengthGrade(length: password.count)
         let bruteForceGrade = getEntropyGrade(entropy)
-        let breadthGrade = getBreadthGrade(charsetSize: charsetSize, categoryCount: categoryCount)
-        let knownRiskGrade = getKnownRiskGrade(password: password, entropy: entropy)
-        let guessabilityGrade = getGuessabilityGrade(patternFindings: patternFindings, length: password.count, entropy: entropy)
+        let knownRiskSignal = getKnownRiskSignal(password: password)
+        let patternRiskSignal = getPatternRiskSignal(patternFindings: patternFindings)
         let overallGrade = getOverallPasswordGrade(
             lengthGrade: lengthGrade,
             bruteForceGrade: bruteForceGrade,
-            breadthGrade: breadthGrade,
-            knownRiskGrade: knownRiskGrade,
-            guessabilityGrade: guessabilityGrade
+            knownRiskLevel: knownRiskSignal.level,
+            patternRiskLevel: patternRiskSignal.level
         )
 
         self.entropy = entropy
@@ -2771,18 +2808,15 @@ struct NativePasswordAnalysis {
         self.overallGrade = overallGrade
         self.metrics = [
             NativePasswordGradeMetric(id: "length", title: "長さ", compactTitle: "長さ", grade: lengthGrade),
-            NativePasswordGradeMetric(id: "bruteForce", title: "総当たり耐性", compactTitle: "耐性", grade: bruteForceGrade),
-            NativePasswordGradeMetric(id: "breadth", title: "文字の広さ", compactTitle: "広さ", grade: breadthGrade),
-            NativePasswordGradeMetric(id: "knownRisk", title: "既知リスク", compactTitle: "既知", grade: knownRiskGrade),
-            NativePasswordGradeMetric(id: "guessability", title: "推測されにくさ", compactTitle: "推測", grade: guessabilityGrade)
+            NativePasswordGradeMetric(id: "bruteForce", title: "総当たり耐性", compactTitle: "耐性", grade: bruteForceGrade)
         ]
+        self.conditionSummary = "条件 \(formatNumber(charsetSize))字/\(formatNumber(categoryCount))種"
         self.warnings = getPasswordAnalysisMessages(
             lengthGrade: lengthGrade,
             bruteForceGrade: bruteForceGrade,
-            breadthGrade: breadthGrade,
-            knownRiskGrade: knownRiskGrade,
-            guessabilityGrade: guessabilityGrade,
-            patternFindings: patternFindings
+            charsetSize: charsetSize,
+            knownRiskSignal: knownRiskSignal,
+            patternRiskSignal: patternRiskSignal
         )
     }
 
@@ -2857,6 +2891,7 @@ private struct NativePasswordRow: View {
                 overviewGradeChip
                 entropyChip
                 compactMetricsRow
+                conditionChip
             }
             .fixedSize(horizontal: true, vertical: false)
 
@@ -2864,6 +2899,7 @@ private struct NativePasswordRow: View {
                 HStack(spacing: 5) {
                     overviewGradeChip
                     entropyChip
+                    conditionChip
                 }
 
                 compactMetricsRow
@@ -2917,6 +2953,24 @@ private struct NativePasswordRow: View {
                 Capsule()
                     .stroke(palette.panelBorder, lineWidth: 1)
             )
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var conditionChip: some View {
+        Text(password.analysis.conditionSummary)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(palette.muted)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(palette.surfaceStrong)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(palette.panelBorder, lineWidth: 1)
+            )
+            .help("生成に使える文字セット数と文字カテゴリ数")
             .fixedSize(horizontal: true, vertical: false)
     }
 
@@ -3577,88 +3631,47 @@ private nonisolated func getEntropyGrade(_ entropy: Double) -> NativePasswordGra
     return .f
 }
 
-private nonisolated func getBreadthGrade(charsetSize: Int, categoryCount: Int) -> NativePasswordGrade {
-    if charsetSize >= 80 && categoryCount >= 4 {
-        return .s
-    }
-    if charsetSize >= 60 && categoryCount >= 3 {
-        return .a
-    }
-    if charsetSize >= 40 && categoryCount >= 2 {
-        return .b
-    }
-    if charsetSize >= 26 {
-        return .c
-    }
-    if charsetSize >= 10 {
-        return .d
-    }
-
-    return .f
-}
-
-private nonisolated func getKnownRiskGrade(password: String, entropy: Double) -> NativePasswordGrade {
+private nonisolated func getKnownRiskSignal(password: String) -> NativePasswordRiskSignal {
     if isBlockedPassword(password) {
-        return .f
+        return NativePasswordRiskSignal(level: .danger, message: "既知の弱いパスワード候補に一致します。")
     }
 
     let normalizedPassword = normalizePasswordForRisk(password)
     if isSimpleWeakPasswordDerivative(normalizedPassword) {
-        return .d
+        return NativePasswordRiskSignal(level: .warning, message: "既知の弱い語句を単純に変形しています。")
     }
 
     let commonWordCoverage = getCommonPasswordWordCoverage(normalizedPassword)
-    guard commonWordCoverage > 0 else {
-        return getRiskSignalGradeCap(length: password.count, entropy: entropy)
+    if commonWordCoverage >= 0.25 {
+        return NativePasswordRiskSignal(level: .caution, message: "一般的な語句が大きな割合を占めます。")
     }
 
-    let grade = getGradeForCommonWordCoverage(commonWordCoverage, normalizedLength: normalizedPassword.count)
-    return capPasswordGrade(grade, maximum: getRiskSignalGradeCap(length: password.count, entropy: entropy))
+    return NativePasswordRiskSignal(level: .none, message: nil)
 }
 
-private nonisolated func getGuessabilityGrade(patternFindings: [NativePasswordPatternFinding], length: Int, entropy: Double) -> NativePasswordGrade {
-    let cap = getRiskSignalGradeCap(length: length, entropy: entropy)
-
+private nonisolated func getPatternRiskSignal(patternFindings: [NativePasswordPatternFinding]) -> NativePasswordRiskSignal {
     guard !patternFindings.isEmpty else {
-        return cap
+        return NativePasswordRiskSignal(level: .none, message: nil)
     }
 
     let maxCoverage = patternFindings.map(\.coverage).max() ?? 0
     let combinedCoverage = min(1, patternFindings.reduce(0.0) { $0 + $1.coverage })
-    let grade = getMeaningfulPatternGrade(maxCoverage: maxCoverage, combinedCoverage: combinedCoverage)
+    let message = getPatternFindingWarningMessage(patternFindings)
 
-    return capPasswordGrade(grade, maximum: cap)
-}
-
-private nonisolated func getRiskSignalGradeCap(length: Int, entropy: Double) -> NativePasswordGrade {
-    if length >= 20 && entropy >= 80 {
-        return .s
-    }
-    if length >= 15 && entropy >= 60 {
-        return .a
-    }
-    if length >= 8 && entropy >= 40 {
-        return .b
-    }
-
-    return .c
-}
-
-private nonisolated func getMeaningfulPatternGrade(maxCoverage: Double, combinedCoverage: Double) -> NativePasswordGrade {
     if maxCoverage >= 0.85 || combinedCoverage >= 0.95 {
-        return .f
+        return NativePasswordRiskSignal(level: .danger, message: message)
     }
     if maxCoverage >= 0.65 || combinedCoverage >= 0.8 {
-        return .d
+        return NativePasswordRiskSignal(level: .warning, message: message)
     }
     if maxCoverage >= 0.45 || combinedCoverage >= 0.6 {
-        return .c
+        return NativePasswordRiskSignal(level: .caution, message: message)
     }
     if maxCoverage >= 0.25 || combinedCoverage >= 0.35 {
-        return .b
+        return NativePasswordRiskSignal(level: .minor, message: "軽い推測パターンを含みます: \(getPatternFindingMessages(patternFindings))")
     }
 
-    return .a
+    return NativePasswordRiskSignal(level: .none, message: nil)
 }
 
 private nonisolated func getCommonPasswordWordCoverage(_ normalizedPassword: String) -> Double {
@@ -3739,17 +3752,6 @@ private nonisolated func getPatternFindingWarningMessage(_ patternFindings: [Nat
     "推測されやすいパターンを含みます: \(getPatternFindingMessages(patternFindings))"
 }
 
-private nonisolated func getKnownRiskMessage(_ knownRiskGrade: NativePasswordGrade) -> String? {
-    if isPasswordGrade(knownRiskGrade, atMost: .d) {
-        return "既知の弱いパスワードまたは単純変形に近いです。"
-    }
-    if isPasswordGrade(knownRiskGrade, atMost: .c) {
-        return "一般的な語句が大きな割合を占めます。"
-    }
-
-    return nil
-}
-
 private nonisolated func getLengthAndEntropyMessages(lengthGrade: NativePasswordGrade, bruteForceGrade: NativePasswordGrade) -> [String] {
     var messages: [String] = []
 
@@ -3763,8 +3765,8 @@ private nonisolated func getLengthAndEntropyMessages(lengthGrade: NativePassword
     return messages
 }
 
-private nonisolated func getBreadthMessage(_ breadthGrade: NativePasswordGrade) -> String? {
-    if isPasswordGrade(breadthGrade, atMost: .d) {
+private nonisolated func getBreadthMessage(charsetSize: Int) -> String? {
+    if charsetSize <= 9 {
         return "文字セットが狭いため、同じ長さでも候補数が少なめです。"
     }
 
@@ -3772,53 +3774,36 @@ private nonisolated func getBreadthMessage(_ breadthGrade: NativePasswordGrade) 
 }
 
 private nonisolated func getPositivePasswordAnalysisMessage() -> String {
-    "十分に長く、推測されにくい生成結果です。"
-}
-
-private nonisolated func getGradeForCommonWordCoverage(_ coverage: Double, normalizedLength: Int) -> NativePasswordGrade {
-    if normalizedLength > 32 && coverage < 0.5 {
-        return .s
-    }
-    if coverage >= 0.7 {
-        return .c
-    }
-    if coverage >= 0.45 {
-        return .b
-    }
-    if coverage >= 0.25 {
-        return .a
-    }
-
-    return .s
+    "目立つ既知リスクや推測パターンは検出されていません。総合評価も確認してください。"
 }
 
 private nonisolated func getOverallPasswordGrade(
     lengthGrade: NativePasswordGrade,
     bruteForceGrade: NativePasswordGrade,
-    breadthGrade: NativePasswordGrade,
-    knownRiskGrade: NativePasswordGrade,
-    guessabilityGrade: NativePasswordGrade
+    knownRiskLevel: NativePasswordRiskLevel,
+    patternRiskLevel: NativePasswordRiskLevel
 ) -> NativePasswordGrade {
-    if knownRiskGrade == .f || lengthGrade == .f || bruteForceGrade == .f {
+    var grade = minPasswordGrade(lengthGrade, bruteForceGrade)
+    let highestRiskLevel = max(knownRiskLevel.rawValue, patternRiskLevel.rawValue)
+
+    switch highestRiskLevel {
+    case NativePasswordRiskLevel.danger.rawValue...:
         return .f
-    }
-
-    let weightedScore =
-        Double(bruteForceGrade.rawValue) * 0.35 +
-        Double(lengthGrade.rawValue) * 0.25 +
-        Double(knownRiskGrade.rawValue) * 0.20 +
-        Double(guessabilityGrade.rawValue) * 0.15 +
-        Double(breadthGrade.rawValue) * 0.05
-    var grade = getGradeFromScore(weightedScore)
-
-    if lengthGrade == .d || bruteForceGrade == .d {
+    case NativePasswordRiskLevel.warning.rawValue:
         grade = capPasswordGrade(grade, maximum: .c)
-    }
-    if isPasswordGrade(knownRiskGrade, atMost: .d) || isPasswordGrade(guessabilityGrade, atMost: .d) {
-        grade = capPasswordGrade(grade, maximum: .c)
+    case NativePasswordRiskLevel.caution.rawValue:
+        grade = capPasswordGrade(grade, maximum: .b)
+    case NativePasswordRiskLevel.minor.rawValue:
+        grade = capPasswordGrade(grade, maximum: .a)
+    default:
+        break
     }
 
     return grade
+}
+
+private nonisolated func minPasswordGrade(_ first: NativePasswordGrade, _ second: NativePasswordGrade) -> NativePasswordGrade {
+    first.rawValue < second.rawValue ? first : second
 }
 
 private nonisolated func capPasswordGrade(_ grade: NativePasswordGrade, maximum: NativePasswordGrade) -> NativePasswordGrade {
@@ -3829,40 +3814,22 @@ private nonisolated func isPasswordGrade(_ grade: NativePasswordGrade, atMost th
     grade.rawValue <= threshold.rawValue
 }
 
-private nonisolated func getGradeFromScore(_ score: Double) -> NativePasswordGrade {
-    switch Int(floor(score)) {
-    case 5...:
-        return .s
-    case 4:
-        return .a
-    case 3:
-        return .b
-    case 2:
-        return .c
-    case 1:
-        return .d
-    default:
-        return .f
-    }
-}
-
 private nonisolated func getPasswordAnalysisMessages(
     lengthGrade: NativePasswordGrade,
     bruteForceGrade: NativePasswordGrade,
-    breadthGrade: NativePasswordGrade,
-    knownRiskGrade: NativePasswordGrade,
-    guessabilityGrade: NativePasswordGrade,
-    patternFindings: [NativePasswordPatternFinding]
+    charsetSize: Int,
+    knownRiskSignal: NativePasswordRiskSignal,
+    patternRiskSignal: NativePasswordRiskSignal
 ) -> [String] {
     var messages = getLengthAndEntropyMessages(lengthGrade: lengthGrade, bruteForceGrade: bruteForceGrade)
 
-    if let knownRiskMessage = getKnownRiskMessage(knownRiskGrade) {
+    if let knownRiskMessage = knownRiskSignal.message {
         messages.append(knownRiskMessage)
     }
-    if isPasswordGrade(guessabilityGrade, atMost: .c), !patternFindings.isEmpty {
-        messages.append(getPatternFindingWarningMessage(patternFindings))
+    if let patternRiskMessage = patternRiskSignal.message {
+        messages.append(patternRiskMessage)
     }
-    if let breadthMessage = getBreadthMessage(breadthGrade) {
+    if let breadthMessage = getBreadthMessage(charsetSize: charsetSize) {
         messages.append(breadthMessage)
     }
 
