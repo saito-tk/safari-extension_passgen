@@ -10,11 +10,11 @@
 
 ## 作業タスク
 
-- [ ] プリセット未選択時の表示名を `未保存の設定` にする。
-- [ ] プリセット選択中の表示名を選択中プリセット名にする。
-- [ ] プリセット名入力欄の編集中は、保存/更新確定前に見出しへ反映しない。
-- [ ] 選択解除または削除後に `未保存の設定` へ戻るようにする。
-- [ ] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
+- [x] プリセット未選択時の表示名を `未保存の設定` にする。
+- [x] プリセット選択中の表示名を選択中プリセット名にする。
+- [x] プリセット名入力欄の編集中は、保存/更新確定前に見出しへ反映しない。
+- [x] 選択解除または削除後に `未保存の設定` へ戻るようにする。
+- [x] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
 
 ## 完了条件
 

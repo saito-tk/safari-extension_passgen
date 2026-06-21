@@ -362,7 +362,7 @@ struct NativePasswordGeneratorView: View {
     private func heroCard(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
-                Text("パスワードジェネレータ")
+                Text(viewModel.currentSettingsTitle)
                     .font(.system(size: 28, weight: .bold))
                     .foregroundStyle(palette.ink)
 
@@ -1139,6 +1139,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
 
         return name != selectedPreset.name || NativePasswordPresetSettings(settings: settings) != selectedPreset.settings
+    }
+
+    var currentSettingsTitle: String {
+        selectedPreset?.name ?? "未保存の設定"
     }
 
     var usesRulePriorityMode: Bool {
