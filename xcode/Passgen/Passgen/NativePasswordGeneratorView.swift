@@ -306,24 +306,10 @@ struct NativePasswordGeneratorView: View {
                                         .frame(width: 4)
 
                                     VStack(alignment: .leading, spacing: 6) {
-                                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                            Text(preset.name)
-                                                .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
-                                                .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
-                                                .lineLimit(2)
-
-                                            if isSelected {
-                                                Text("選択中")
-                                                    .font(.system(size: 10, weight: .bold))
-                                                    .foregroundStyle(palette.accentStrong)
-                                                    .padding(.horizontal, 6)
-                                                    .padding(.vertical, 3)
-                                                    .background(
-                                                        Capsule()
-                                                            .fill(palette.accent.opacity(0.18))
-                                                    )
-                                            }
-                                        }
+                                        Text(preset.name)
+                                            .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
+                                            .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
+                                            .lineLimit(2)
 
                                         if let metadataText = viewModel.presetMetadataText(for: preset) {
                                             Text(metadataText)
@@ -335,9 +321,12 @@ struct NativePasswordGeneratorView: View {
 
                                     Spacer(minLength: 0)
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .disabled(viewModel.isGenerating)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
                             Menu {
                                 Button("削除", role: .destructive) {

@@ -10,11 +10,11 @@
 
 ## 作業タスク
 
-- [ ] プリセット行から `選択中` 文言ラベルを削除する。
-- [ ] プリセット行の選択ボタンが横幅全体を占めるようにする。
-- [ ] 空白部分もクリック対象になるよう `contentShape` などでヒット領域を明示する。
-- [ ] 設定ボタンのメニュー操作は維持する。
-- [ ] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
+- [x] プリセット行から `選択中` 文言ラベルを削除する。
+- [x] プリセット行の選択ボタンが横幅全体を占めるようにする。
+- [x] 空白部分もクリック対象になるよう `contentShape` などでヒット領域を明示する。
+- [x] 設定ボタンのメニュー操作は維持する。
+- [x] `xcodebuild -project xcode/Passgen/Passgen.xcodeproj -scheme Passgen -configuration Debug build` で確認する。
 
 ## 完了条件
 
