@@ -176,7 +176,7 @@ struct NativePasswordGeneratorView: View {
                 Button {
                     viewModel.savePreset()
                 } label: {
-                    Text("保存")
+                    Text(viewModel.selectedPresetID == nil ? "保存" : "更新")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(viewModel.canSavePreset ? Color.white : palette.disabledText)
                         .frame(maxWidth: .infinity)
@@ -203,9 +203,49 @@ struct NativePasswordGeneratorView: View {
             )
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("プリセット一覧")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(palette.muted)
+                HStack(alignment: .center, spacing: 8) {
+                    Text("プリセット一覧")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(palette.muted)
+
+                    Spacer(minLength: 0)
+
+                    Menu {
+                        ForEach(NativePresetSortKey.allCases) { sortKey in
+                            Button(sortKey.title) {
+                                viewModel.selectPresetSortKey(sortKey)
+                            }
+                        }
+                    } label: {
+                        Text(viewModel.presetSortKey.title)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.accentStrong)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(viewModel.isGenerating ? palette.disabledBackground : palette.accentSoft)
+                            )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .disabled(viewModel.isGenerating)
+
+                    Button {
+                        viewModel.togglePresetSortDirection()
+                    } label: {
+                        Image(systemName: viewModel.presetSortDirection.systemImageName)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.accentStrong)
+                            .frame(width: 26, height: 26)
+                            .background(
+                                Circle()
+                                    .fill(viewModel.isGenerating ? palette.disabledBackground : palette.accentSoft)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isGenerating)
+                    .help(viewModel.presetSortDirection.title)
+                }
 
                 if viewModel.presets.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -229,7 +269,7 @@ struct NativePasswordGeneratorView: View {
                             .stroke(palette.panelBorder, lineWidth: 1)
                     )
                 } else {
-                    ForEach(viewModel.presets) { preset in
+                    ForEach(viewModel.sortedPresets) { preset in
                         let isSelected = viewModel.selectedPresetID == preset.id
 
                         Button {
@@ -241,15 +281,12 @@ struct NativePasswordGeneratorView: View {
                                     .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
                                     .lineLimit(2)
 
-                                Text(viewModel.presetDetailText(for: preset))
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
-                                    .fixedSize(horizontal: false, vertical: true)
-
-                                Text(viewModel.presetCharacterSummary(for: preset))
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.accentStrong)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                if let metadataText = viewModel.presetMetadataText(for: preset) {
+                                    Text(metadataText)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
@@ -1006,10 +1043,13 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var presetStatus = NativeInlineStatus()
     @Published var presets: [NativePasswordPreset] = []
     @Published var selectedPresetID: String?
+    @Published var presetSortKey: NativePresetSortKey = .name
+    @Published var presetSortDirection: NativePresetSortDirection = .ascending
 
     private var generationTask: Task<Void, Never>?
     private var isRestoringSettings = true
     private var generatedPasswordStore: [UUID: String] = [:]
+    private var settingsBeforePresetSelection: NativePasswordSettings?
 
     init() {
         let restoredSettings = Self.restoreSettings()
@@ -1050,8 +1090,40 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         !results.isEmpty && !isGenerating
     }
 
+    var sortedPresets: [NativePasswordPreset] {
+        presets.sorted { firstPreset, secondPreset in
+            let comparison: ComparisonResult
+
+            switch presetSortKey {
+            case .name:
+                comparison = Self.comparePresetNames(firstPreset, secondPreset)
+            case .createdAt:
+                comparison = Self.comparePresetDates(firstPreset.createdAt, secondPreset.createdAt, firstPreset: firstPreset, secondPreset: secondPreset)
+            case .updatedAt:
+                comparison = Self.comparePresetDates(firstPreset.updatedAt, secondPreset.updatedAt, firstPreset: firstPreset, secondPreset: secondPreset)
+            }
+
+            switch comparison {
+            case .orderedAscending:
+                return presetSortDirection == .ascending
+            case .orderedDescending:
+                return presetSortDirection == .descending
+            case .orderedSame:
+                return false
+            }
+        }
+    }
+
     func toggleSavedSettingsSidebar() {
         isSavedSettingsSidebarVisible.toggle()
+    }
+
+    func selectPresetSortKey(_ sortKey: NativePresetSortKey) {
+        presetSortKey = sortKey
+    }
+
+    func togglePresetSortDirection() {
+        presetSortDirection = presetSortDirection == .ascending ? .descending : .ascending
     }
 
     func savePreset() {
@@ -1068,7 +1140,20 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         let now = Date()
         let snapshot = NativePasswordPresetSettings(settings: settings)
 
-        if let existingIndex = presets.firstIndex(where: { $0.name == name }) {
+        if let selectedPresetID,
+           let selectedIndex = presets.firstIndex(where: { $0.id == selectedPresetID }) {
+            let selectedPreset = presets[selectedIndex]
+            let updatedPreset = NativePasswordPreset(
+                id: selectedPreset.id,
+                name: name,
+                createdAt: selectedPreset.createdAt,
+                updatedAt: now,
+                settings: snapshot
+            )
+            presets[selectedIndex] = updatedPreset
+            self.selectedPresetID = updatedPreset.id
+            presetStatus = NativeInlineStatus(message: "選択中のプリセットを更新しました。")
+        } else if let existingIndex = presets.firstIndex(where: { $0.name == name }) {
             let existingPreset = presets[existingIndex]
             let updatedPreset = NativePasswordPreset(
                 id: existingPreset.id,
@@ -1079,6 +1164,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             )
             presets[existingIndex] = updatedPreset
             selectedPresetID = updatedPreset.id
+            settingsBeforePresetSelection = settings
             presetStatus = NativeInlineStatus(message: "既存のプリセットを更新しました。")
         } else {
             let preset = NativePasswordPreset(
@@ -1090,6 +1176,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             )
             presets.insert(preset, at: 0)
             selectedPresetID = preset.id
+            settingsBeforePresetSelection = settings
             presetStatus = NativeInlineStatus(message: "プリセットを保存しました。")
         }
 
@@ -1102,38 +1189,50 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             return
         }
 
-        settings = Self.normalizedSettings(from: preset.settings.applying(to: settings))
-        lengthText = String(settings.length)
-        countText = String(settings.count)
-        syncCategorySelectionFlags()
-        syncSelectAllState()
-        persistSettings()
+        if selectedPresetID == preset.id {
+            deselectPreset()
+            return
+        }
+
+        if selectedPresetID == nil {
+            settingsBeforePresetSelection = settings
+        }
+
+        applySettings(preset.settings.applying(to: settings))
         selectedPresetID = preset.id
         presetNameText = preset.name
         presetStatus = NativeInlineStatus(message: "プリセットを反映しました。")
     }
 
-    func presetDetailText(for preset: NativePasswordPreset) -> String {
-        "\(formatNumber(preset.settings.length)) 文字 / \(formatNumber(preset.settings.count)) 件"
+    func presetMetadataText(for preset: NativePasswordPreset) -> String? {
+        switch presetSortKey {
+        case .name:
+            return nil
+        case .createdAt:
+            return "作成日 \(Self.formatPresetDate(preset.createdAt))"
+        case .updatedAt:
+            return "更新日 \(Self.formatPresetDate(preset.updatedAt))"
+        }
     }
 
-    func presetCharacterSummary(for preset: NativePasswordPreset) -> String {
-        var labels: [String] = []
-        if preset.settings.uppercase {
-            labels.append("大文字")
-        }
-        if preset.settings.lowercase {
-            labels.append("小文字")
-        }
-        if preset.settings.digits {
-            labels.append("数字")
-        }
-        if preset.settings.includeSymbols {
-            labels.append("記号")
+    private func deselectPreset() {
+        if let settingsBeforePresetSelection {
+            applySettings(settingsBeforePresetSelection)
         }
 
-        let characterText = labels.isEmpty ? "文字種なし" : labels.joined(separator: " / ")
-        return "\(characterText) / \(preset.settings.firstCharacterMode.title)"
+        selectedPresetID = nil
+        presetNameText = ""
+        self.settingsBeforePresetSelection = nil
+        presetStatus = NativeInlineStatus(message: "プリセットの選択を解除しました。")
+    }
+
+    private func applySettings(_ newSettings: NativePasswordSettings) {
+        settings = Self.normalizedSettings(from: newSettings)
+        lengthText = String(settings.length)
+        countText = String(settings.count)
+        syncCategorySelectionFlags()
+        syncSelectAllState()
+        persistSettings()
     }
 
     func selectedCharacters(for tab: NativeCharacterTab) -> [String] {
@@ -1618,6 +1717,40 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     private static func sanitizePresetName(_ value: String) -> String {
         sanitizeSingleLineText(value).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func formatPresetDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    private static func comparePresetNames(_ firstPreset: NativePasswordPreset, _ secondPreset: NativePasswordPreset) -> ComparisonResult {
+        let nameComparison = firstPreset.name.localizedStandardCompare(secondPreset.name)
+        if nameComparison != .orderedSame {
+            return nameComparison
+        }
+
+        return firstPreset.id.localizedStandardCompare(secondPreset.id)
+    }
+
+    private static func comparePresetDates(
+        _ firstDate: Date,
+        _ secondDate: Date,
+        firstPreset: NativePasswordPreset,
+        secondPreset: NativePasswordPreset
+    ) -> ComparisonResult {
+        if firstDate < secondDate {
+            return .orderedAscending
+        }
+
+        if firstDate > secondDate {
+            return .orderedDescending
+        }
+
+        return comparePresetNames(firstPreset, secondPreset)
     }
 
     private static func sanitizeSingleLineText(_ value: String) -> String {
@@ -2675,6 +2808,48 @@ enum NativeFirstCharacterMode: String, CaseIterable, Codable, Identifiable {
             return "文字種"
         case .fixedPrefix:
             return "固定文字"
+        }
+    }
+}
+
+enum NativePresetSortKey: String, CaseIterable, Identifiable {
+    case name
+    case createdAt
+    case updatedAt
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .name:
+            return "名前"
+        case .createdAt:
+            return "作成日"
+        case .updatedAt:
+            return "更新日"
+        }
+    }
+}
+
+enum NativePresetSortDirection: String {
+    case ascending
+    case descending
+
+    var title: String {
+        switch self {
+        case .ascending:
+            return "昇順"
+        case .descending:
+            return "降順"
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .ascending:
+            return "arrow.up"
+        case .descending:
+            return "arrow.down"
         }
     }
 }
