@@ -64,6 +64,8 @@ struct NativePasswordGeneratorView: View {
     @FocusState private var focusedField: NativeFocusedField?
     @State private var activeCharacterTab: NativeCharacterTab = .uppercase
     @State private var presetPendingDeletion: NativePasswordPreset?
+    @State private var isCharacterEditorHelpPresented = false
+    @State private var isRulesHelpPresented = false
     @State private var isStrengthHelpPresented = false
 
     init(viewModel: NativePasswordGeneratorViewModel) {
@@ -425,7 +427,13 @@ struct NativePasswordGeneratorView: View {
 
     private func settingsCard(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader(title: "文字選択エディタ")
+            sectionHeaderWithHelp(
+                title: "文字選択エディタ",
+                isPresented: $isCharacterEditorHelpPresented,
+                palette: palette
+            ) {
+                characterEditorHelpPopover(palette: palette)
+            }
 
             characterTabBar(palette: palette)
             activeCharacterPanel(palette: palette)
@@ -717,7 +725,13 @@ struct NativePasswordGeneratorView: View {
 
     private func rulesCard(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader(title: "生成ルール")
+            sectionHeaderWithHelp(
+                title: "生成ルール",
+                isPresented: $isRulesHelpPresented,
+                palette: palette
+            ) {
+                generationRulesHelpPopover(palette: palette)
+            }
 
             VStack(alignment: .leading, spacing: 10) {
                 Text("生成方式")
@@ -1061,6 +1075,84 @@ struct NativePasswordGeneratorView: View {
         .background(palette.surface)
     }
 
+    private func characterEditorHelpPopover(palette: NativeThemePalette) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("文字選択エディタについて")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(palette.ink)
+
+                strengthHelpSection(
+                    title: "ここで決めること",
+                    rows: [
+                        ("文字種", "大文字、小文字、数字、記号の中から、生成に使う文字の種類を選びます。"),
+                        ("個別選択", "文字を個別にオン / オフできます。オフにした文字は、生成候補から外れます。"),
+                        ("記号", "使いたい記号だけを選べます。記号文字列を貼り付けて、まとめて反映することもできます。")
+                    ],
+                    palette: palette
+                )
+
+                strengthHelpSection(
+                    title: "確認のしかた",
+                    rows: [
+                        ("現在選択中の文字", "最終的に生成候補へ入る文字を確認する欄です。薄く表示されている文字は候補に入りません。"),
+                        ("生成結果への影響", "候補に入る文字が多いほど、同じ文字数でも総当たり耐性が上がりやすくなります。")
+                    ],
+                    palette: palette
+                )
+            }
+            .padding(16)
+        }
+        .frame(width: 430, height: 360, alignment: .leading)
+        .background(palette.surface)
+    }
+
+    private func generationRulesHelpPopover(palette: NativeThemePalette) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("生成ルールについて")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(palette.ink)
+
+                strengthHelpSection(
+                    title: "生成方式",
+                    rows: [
+                        ("完全一様", "選んだ文字の中から、できるだけ公平に選ぶ方式です。細かい条件より、偏りの少なさを優先します。"),
+                        ("ルール優先", "先頭文字や必ず含める文字種など、サービスごとの条件に合わせやすい方式です。")
+                    ],
+                    palette: palette
+                )
+
+                strengthHelpSection(
+                    title: "追加ルール",
+                    rows: [
+                        ("似た文字を除外する", "`I`、`l`、`1`、`O`、`0` など、見間違えやすい文字を避けます。"),
+                        ("選択した文字種を必ず含める", "大文字や数字など、選んだ文字種が少なくとも 1 文字ずつ入るようにします。"),
+                        ("同じ文字を連続させない", "`aa` や `11` のように同じ文字が続く並びを避けます。")
+                    ],
+                    palette: palette
+                )
+
+                strengthHelpSection(
+                    title: "先頭文字の設定",
+                    rows: [
+                        ("文字種", "先頭に使ってよい文字種を選びます。"),
+                        ("固定文字", "指定した文字列を必ず先頭に付けます。固定文字は他人に知られている前提で強度を見積もります。")
+                    ],
+                    palette: palette
+                )
+
+                Text("一部の追加ルールは `ルール優先` のときに使えます。`完全一様` では、選んだ文字から公平に選ぶことを優先します。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(16)
+        }
+        .frame(width: 460, height: 500, alignment: .leading)
+        .background(palette.surface)
+    }
+
     private func truncatedResultsNotice(palette: NativeThemePalette) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "text.alignleft")
@@ -1106,6 +1198,32 @@ struct NativePasswordGeneratorView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func sectionHeaderWithHelp<HelpContent: View>(
+        title: String,
+        isPresented: Binding<Bool>,
+        palette: NativeThemePalette,
+        @ViewBuilder helpContent: @escaping () -> HelpContent
+    ) -> some View {
+        HStack(spacing: 8) {
+            sectionHeader(title: title)
+
+            Button {
+                isPresented.wrappedValue.toggle()
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(palette.accentStrong)
+            }
+            .buttonStyle(.plain)
+            .help("\(title)の説明")
+            .popover(isPresented: isPresented, arrowEdge: .top) {
+                helpContent()
+            }
+
+            Spacer(minLength: 0)
         }
     }
 
