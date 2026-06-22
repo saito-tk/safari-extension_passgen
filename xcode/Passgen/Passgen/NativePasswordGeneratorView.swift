@@ -1019,11 +1019,11 @@ struct NativePasswordGeneratorView: View {
                 strengthHelpSection(
                     title: "結果行の読み方",
                     rows: [
-                        ("総合", "長さと総当たり耐性を主軸にした最終評価です。警告がある場合は上限を下げます。"),
-                        ("長さ", "文字数の評価です。15文字以上を重視し、24文字以上を S とします。"),
-                        ("耐性", "総当たり耐性です。固定文字を除いたランダム部分の推定 bits を評価します。"),
-                        ("推定エントロピー", "固定文字を除いたランダム部分の探索空間を bits 単位で見積もった値です。"),
-                        ("条件", "同じ生成条件では全件共通のため、一覧の上側に 1 回だけ表示します。")
+                        ("総合", "このパスワードを全体として見た評価です。長さと総当たり耐性を中心に、注意点があれば評価を下げます。"),
+                        ("長さ", "文字数の評価です。15文字以上をひとつの目安にし、24文字以上を最高評価にします。"),
+                        ("総当たり耐性", "すべての候補を順番に試されたときの破られにくさです。先頭に固定した文字など、あらかじめ分かる文字は計算から外します。"),
+                        ("推定エントロピー", "総当たり耐性を数値にしたものです。数値が大きいほど、試す候補が多くなります。"),
+                        ("条件", "生成に使える文字の数と種類です。同じ生成条件では全件共通なので、一覧の上側にだけ表示します。")
                     ],
                     palette: palette
                 )
@@ -1031,10 +1031,11 @@ struct NativePasswordGeneratorView: View {
                 strengthHelpSection(
                     title: "グレードの意味",
                     rows: [
-                        ("S", "十分な長さと耐性があり、通常はそのまま使いやすい状態です。"),
-                        ("A", "強い状態です。より重要な用途では長さを増やす余地があります。"),
-                        ("B/C", "使える場面はありますが、重要な用途では長さや条件の見直しを推奨します。"),
-                        ("D/F", "短い、耐性が低い、または危険な特徴があります。使用を避けるか再生成してください。")
+                        ("S", "十分強く、通常の用途ではそのまま使いやすい状態です。"),
+                        ("A", "強い状態です。特に重要な用途では、もう少し長くすると余裕が出ます。"),
+                        ("B", "最低目安は超えていますが、重要な用途では改善余地があります。"),
+                        ("C", "最低目安に近い状態です。重要な用途では長くして再生成してください。"),
+                        ("D/F", "短い、破られやすい、または危険な特徴があります。使用を避けて再生成してください。")
                     ],
                     palette: palette
                 )
@@ -1042,14 +1043,14 @@ struct NativePasswordGeneratorView: View {
                 strengthHelpSection(
                     title: "警告の扱い",
                     rows: [
-                        ("既知リスク", "ローカル blocklist の全体一致や単純派生を見ます。未検出でも漏洩なしを保証しません。"),
-                        ("推測パターン", "連番、キーボード配列、日付、繰り返しなど、攻撃者が試しやすい構造を見ます。"),
-                        ("評価への反映", "問題がなければ加点せず、問題がある場合だけ総合評価の上限を下げます。")
+                        ("既知リスク", "よく使われる言葉や弱いパスワードの形に近いかを、アプリ内の簡易リストで確認します。"),
+                        ("推測パターン", "連番、キーボード配列、日付、繰り返しなど、他人が試しやすい並びを確認します。"),
+                        ("補助メッセージ", "問題や改善余地がある場合だけ表示します。何も出ない場合は、目立つ注意点が見つからなかった状態です。")
                     ],
                     palette: palette
                 )
 
-                Text("判定は目安です。オンライン漏洩照合は行いません。コピーとテキスト出力には省略前の全文字列を使います。")
+                Text("判定は目安です。漏洩データベースへのオンライン照合は行いません。コピーとテキスト出力には省略前の全文字列を使います。")
                     .font(.system(size: 11))
                     .foregroundStyle(palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -2896,7 +2897,7 @@ struct NativePasswordAnalysis {
         self.overallGrade = overallGrade
         self.metrics = [
             NativePasswordGradeMetric(id: "length", title: "長さ", compactTitle: "長さ", grade: lengthGrade),
-            NativePasswordGradeMetric(id: "bruteForce", title: "総当たり耐性", compactTitle: "耐性", grade: bruteForceGrade)
+            NativePasswordGradeMetric(id: "bruteForce", title: "総当たり耐性", compactTitle: "総当たり耐性", grade: bruteForceGrade)
         ]
         self.conditionSummary = "条件 \(formatNumber(charsetSize))字/\(formatNumber(categoryCount))種"
         self.warnings = getPasswordAnalysisMessages(
