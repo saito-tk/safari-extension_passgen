@@ -1222,8 +1222,17 @@ private struct NativeSwiftLayoutMetrics {
 final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var settings: NativePasswordSettings
 
-    @Published var lengthText: String
-    @Published var countText: String
+    @Published var lengthText: String {
+        didSet {
+            clearNumericCorrectionWarningIfNeeded(previousText: oldValue, currentText: lengthText)
+        }
+    }
+
+    @Published var countText: String {
+        didSet {
+            clearNumericCorrectionWarningIfNeeded(previousText: oldValue, currentText: countText)
+        }
+    }
     @Published var symbolImportText = ""
     @Published var settingsStatus = NativeInlineStatus()
     @Published var resultStatus = NativeInlineStatus()
@@ -1688,7 +1697,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     func generate() {
         normalizeNumericInputs(source: nil)
         resultStatus = NativeInlineStatus()
-        settingsStatus = settingsStatus.tone == .warning ? settingsStatus : NativeInlineStatus()
+        settingsStatus = NativeInlineStatus()
 
         if let validationMessage = validateSettings() {
             settingsStatus = NativeInlineStatus(message: validationMessage, tone: .error)
@@ -1897,6 +1906,14 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         if derivedCountAdjusted {
             settingsStatus = NativeInlineStatus(message: Self.countCorrectionMessage(normalizedCount, maxCountForLength), tone: .warning)
         }
+    }
+
+    private func clearNumericCorrectionWarningIfNeeded(previousText: String, currentText: String) {
+        guard previousText != currentText, settingsStatus.tone == .warning else {
+            return
+        }
+
+        settingsStatus = NativeInlineStatus()
     }
 
     private func syncSelectAllState() {
