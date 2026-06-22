@@ -16,7 +16,7 @@ final class SettingsWindowController: NSWindowController {
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
-        window.setContentSize(NSSize(width: 360, height: 170))
+        window.setContentSize(NSSize(width: 360, height: 270))
         super.init(window: window)
     }
 
@@ -27,10 +27,12 @@ final class SettingsWindowController: NSWindowController {
 }
 
 private struct SettingsView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var selectedAppearanceMode = AppPreferences.shared.appearanceMode
+    @State private var selectedDisplayTheme = AppPreferences.shared.displayTheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 22) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("アプリテーマ")
                     .font(.system(size: 15, weight: .semibold))
@@ -47,6 +49,21 @@ private struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            VStack(alignment: .leading, spacing: 10) {
+                Text("表示テーマ")
+                    .font(.system(size: 15, weight: .semibold))
+
+                HStack(spacing: 12) {
+                    ForEach(NativeTheme.allCases) { theme in
+                        displayThemeButton(theme)
+                    }
+                }
+
+                Text("生成画面のアクセントカラーを切り替えます。生成内容には影響しません。")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
             Spacer(minLength: 0)
         }
         .padding(20)
@@ -54,5 +71,41 @@ private struct SettingsView: View {
         .onChange(of: selectedAppearanceMode) { _, newValue in
             AppPreferences.shared.appearanceMode = newValue
         }
+        .onChange(of: selectedDisplayTheme) { _, newValue in
+            AppPreferences.shared.displayTheme = newValue
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .nativeDisplayThemeDidChange)) { notification in
+            guard let theme = notification.object as? NativeTheme else {
+                return
+            }
+
+            selectedDisplayTheme = theme
+        }
+    }
+
+    private func displayThemeButton(_ theme: NativeTheme) -> some View {
+        let palette = theme.palette(for: NativeThemeAppearance(colorScheme))
+        let isSelected = selectedDisplayTheme == theme
+
+        return Button {
+            selectedDisplayTheme = theme
+        } label: {
+            Circle()
+                .fill(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 26, height: 26)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.92), lineWidth: 2)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(isSelected ? palette.accentStrong : Color.clear, lineWidth: 3)
+                        .frame(width: 34, height: 34)
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(theme.displayName)
+        .accessibilityLabel("表示テーマ \(theme.displayName)")
     }
 }

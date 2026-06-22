@@ -40,6 +40,7 @@ enum AppAppearanceMode: Int {
 
 extension Notification.Name {
     static let appAppearanceModeDidChange = Notification.Name("AppAppearanceModeDidChange")
+    static let nativeDisplayThemeDidChange = Notification.Name("NativeDisplayThemeDidChange")
 }
 
 final class AppPreferences {
@@ -58,6 +59,40 @@ final class AppPreferences {
 
             UserDefaults.standard.set(newValue.rawValue, forKey: AppAppearanceMode.storageKey)
             NotificationCenter.default.post(name: .appAppearanceModeDidChange, object: newValue)
+        }
+    }
+
+    var displayTheme: NativeTheme {
+        get {
+            Self.restoreNativeSettings().theme
+        }
+        set {
+            var settings = Self.restoreNativeSettings()
+            guard settings.theme != newValue else {
+                return
+            }
+
+            settings.theme = newValue
+            Self.persistNativeSettings(settings)
+            NotificationCenter.default.post(name: .nativeDisplayThemeDidChange, object: newValue)
+        }
+    }
+
+    private static func restoreNativeSettings() -> NativePasswordSettings {
+        guard let data = UserDefaults.standard.data(forKey: nativeSettingsStorageKey),
+              let restoredSettings = try? JSONDecoder().decode(NativePasswordSettings.self, from: data) else {
+            return .defaultSettings
+        }
+
+        return restoredSettings
+    }
+
+    private static func persistNativeSettings(_ settings: NativePasswordSettings) {
+        do {
+            let data = try JSONEncoder().encode(settings)
+            UserDefaults.standard.set(data, forKey: nativeSettingsStorageKey)
+        } catch {
+            NSLog("Failed to persist display theme: %@", error.localizedDescription)
         }
     }
 }

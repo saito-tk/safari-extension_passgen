@@ -45,7 +45,7 @@ private let nativeSymbolOptions: [NativeSymbolOption] = [
 ]
 
 private let nativeSimilarCharacters = Set(["I", "l", "1", "O", "0", "o"])
-private let nativeSettingsStorageKey = "nativePassgenSettings"
+let nativeSettingsStorageKey = "nativePassgenSettings"
 private let nativePresetsStorageKey = "nativePassgenPresets"
 private let nativeMinPasswordLength = 4
 private let nativeMaxPasswordLength = 999_999
@@ -128,6 +128,13 @@ struct NativePasswordGeneratorView: View {
         } message: { preset in
             Text("「\(preset.name)」を削除します。この操作は元に戻せません。")
         }
+        .onReceive(NotificationCenter.default.publisher(for: .nativeDisplayThemeDidChange)) { notification in
+            guard let theme = notification.object as? NativeTheme else {
+                return
+            }
+
+            viewModel.applyDisplayTheme(theme)
+        }
     }
 
     private func savedSettingsColumn(palette: NativeThemePalette) -> some View {
@@ -145,7 +152,6 @@ struct NativePasswordGeneratorView: View {
                 heroCard(palette: palette)
                 settingsCard(palette: palette)
                 rulesCard(palette: palette)
-                themeCard(palette: palette)
             }
         }
         .scrollIndicators(.visible)
@@ -882,48 +888,6 @@ struct NativePasswordGeneratorView: View {
         )
     }
 
-    private func themeCard(palette: NativeThemePalette) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("表示テーマ")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(palette.muted)
-
-                Spacer(minLength: 0)
-
-                Text("見た目のみ")
-                    .font(.system(size: 11))
-                    .foregroundStyle(palette.muted)
-            }
-
-            HStack(spacing: 10) {
-                ForEach(NativeTheme.allCases) { theme in
-                    let swatchPalette = theme.palette(for: NativeThemeAppearance(colorScheme))
-                    Button {
-                        viewModel.selectTheme(theme)
-                    } label: {
-                        Circle()
-                            .fill(LinearGradient(colors: [swatchPalette.accent, swatchPalette.accentStrong], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 24, height: 24)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white.opacity(0.92), lineWidth: 2)
-                            )
-                            .overlay(
-                                Circle()
-                                    .stroke(viewModel.settings.theme == theme ? palette.accent.opacity(0.22) : Color.clear, lineWidth: 6)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.isGenerating)
-                    .help(theme.displayName)
-                }
-            }
-        }
-        .padding(16)
-        .nativeCardStyle(palette: palette)
-    }
-
     private func resultsCard(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
@@ -1630,13 +1594,17 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         persistSettings()
     }
 
-    func selectTheme(_ theme: NativeTheme) {
-        settings.theme = theme
+    func updateFixedPrefix(_ value: String) {
+        settings.fixedPrefix = Self.sanitizeSingleLineText(value)
         persistSettings()
     }
 
-    func updateFixedPrefix(_ value: String) {
-        settings.fixedPrefix = Self.sanitizeSingleLineText(value)
+    func applyDisplayTheme(_ theme: NativeTheme) {
+        guard settings.theme != theme else {
+            return
+        }
+
+        settings.theme = theme
         persistSettings()
     }
 
