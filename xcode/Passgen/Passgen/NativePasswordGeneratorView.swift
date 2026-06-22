@@ -397,6 +397,7 @@ struct NativePasswordGeneratorView: View {
                 numericFieldCard(
                     label: "文字数",
                     text: $viewModel.lengthText,
+                    rangeText: viewModel.lengthInputRangeText,
                     focus: .length,
                     palette: palette
                 )
@@ -404,6 +405,7 @@ struct NativePasswordGeneratorView: View {
                 numericFieldCard(
                     label: "件数",
                     text: $viewModel.countText,
+                    rangeText: viewModel.countInputRangeText,
                     focus: .count,
                     palette: palette
                 )
@@ -1142,13 +1144,23 @@ struct NativePasswordGeneratorView: View {
         }
     }
 
-    private func numericFieldCard(label: String, text: Binding<String>, focus: NativeFocusedField, palette: NativeThemePalette) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundStyle(palette.muted)
+    private func numericFieldCard(label: String, text: Binding<String>, rangeText: String, focus: NativeFocusedField, palette: NativeThemePalette) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(label)
+                    .font(.system(size: 11))
+                    .foregroundStyle(palette.muted)
 
-            TextField("", text: text)
+                Spacer(minLength: 4)
+
+                Text(rangeText)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(palette.muted.opacity(0.82))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            TextField("", text: normalizedNumericBinding(text))
                 .textFieldStyle(.plain)
                 .focused($focusedField, equals: focus)
                 .font(.system(size: 22, weight: .semibold))
@@ -1163,6 +1175,17 @@ struct NativePasswordGeneratorView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(palette.panelBorder, lineWidth: 1)
+        )
+    }
+
+    private func normalizedNumericBinding(_ text: Binding<String>) -> Binding<String> {
+        Binding(
+            get: {
+                text.wrappedValue
+            },
+            set: { newValue in
+                text.wrappedValue = normalizeFullWidthDigits(newValue)
+            }
         )
     }
 
@@ -1256,6 +1279,14 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     private var generatedPasswordStore: [UUID: String] = [:]
     private var currentGenerationSession: NativeGenerationSession?
     private var settingsBeforePresetSelection: NativePasswordSettings?
+
+    var lengthInputRangeText: String {
+        formatCountRange(nativeMinPasswordLength, nativeMaxPasswordLength)
+    }
+
+    var countInputRangeText: String {
+        formatCountRange(nativeMinPasswordCount, Self.getMaxCountForLength(settings.length))
+    }
 
     init() {
         let restoredSettings = Self.restoreSettings()
@@ -4232,6 +4263,22 @@ private func formatCountRange(_ minimum: Int, _ maximum: Int) -> String {
     }
 
     return "\(formatNumber(minimum))〜\(formatNumber(maximum))"
+}
+
+private func normalizeFullWidthDigits(_ value: String) -> String {
+    var scalars = String.UnicodeScalarView()
+
+    for scalar in value.unicodeScalars {
+        let scalarValue = scalar.value
+
+        if (0xFF10...0xFF19).contains(scalarValue), let convertedScalar = UnicodeScalar(scalarValue - 0xFEE0) {
+            scalars.append(convertedScalar)
+        } else {
+            scalars.append(scalar)
+        }
+    }
+
+    return String(scalars)
 }
 
 private extension View {
