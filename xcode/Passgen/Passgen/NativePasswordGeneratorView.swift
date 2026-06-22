@@ -1018,8 +1018,8 @@ struct NativePasswordGeneratorView: View {
 
     private func resultMetadataSummary(_ metadata: NativePasswordResultMetadata, palette: NativeThemePalette) -> some View {
         HStack(spacing: 6) {
-            resultMetadataChip("\(formatNumber(metadata.entropy)) bits", palette: palette)
-                .help("生成条件全体で共通の推定総当たり耐性")
+            resultMetadataChip("推定エントロピー: \(formatNumber(metadata.entropy)) bits", palette: palette)
+                .help("固定文字を除いた生成条件全体で共通の推定エントロピー")
             resultMetadataChip(metadata.conditionSummary, palette: palette)
                 .help("生成に使える文字セット数と文字カテゴリ数")
             Spacer(minLength: 0)
@@ -1056,7 +1056,8 @@ struct NativePasswordGeneratorView: View {
                         ("総合", "長さと総当たり耐性を主軸にした最終評価です。警告がある場合は上限を下げます。"),
                         ("長さ", "文字数の評価です。15文字以上を重視し、24文字以上を S とします。"),
                         ("耐性", "総当たり耐性です。固定文字を除いたランダム部分の推定 bits を評価します。"),
-                        ("bits/条件", "同じ生成条件では全件共通のため、一覧の上側に 1 回だけ表示します。")
+                        ("推定エントロピー", "固定文字を除いたランダム部分の探索空間を bits 単位で見積もった値です。"),
+                        ("条件", "同じ生成条件では全件共通のため、一覧の上側に 1 回だけ表示します。")
                     ],
                     palette: palette
                 )
