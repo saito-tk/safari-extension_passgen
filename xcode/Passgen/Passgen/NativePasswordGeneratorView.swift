@@ -1253,6 +1253,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     private var generationTask: Task<Void, Never>?
     private var isRestoringSettings = true
     private var generatedPasswordStore: [UUID: String] = [:]
+    private var currentGenerationSession: NativeGenerationSession?
     private var settingsBeforePresetSelection: NativePasswordSettings?
 
     init() {
@@ -1693,6 +1694,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             resultStatus = NativeInlineStatus()
             results = []
             generatedPasswordStore = [:]
+            currentGenerationSession = nil
             progressCompleted = 0
             progressTotal = 0
             return
@@ -1701,6 +1703,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         generationTask?.cancel()
         results = []
         generatedPasswordStore = [:]
+        currentGenerationSession = NativeGenerationSession()
         progressCompleted = 0
         progressTotal = settings.count
         isGenerating = true
@@ -1769,7 +1772,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         savePanel.allowedContentTypes = [.plainText]
         savePanel.canCreateDirectories = true
         savePanel.isExtensionHidden = false
-        savePanel.nameFieldStringValue = "passgen-results.txt"
+        savePanel.nameFieldStringValue = defaultTextExportFilename()
         savePanel.title = "生成結果を書き出す"
         savePanel.message = "生成したすべてのパスワードをテキストファイルとして保存します。"
 
@@ -1784,6 +1787,11 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         } catch {
             resultStatus = NativeInlineStatus(message: "テキスト出力に失敗しました。保存先を確認してください。", tone: .error)
         }
+    }
+
+    private func defaultTextExportFilename() -> String {
+        let session = currentGenerationSession ?? NativeGenerationSession()
+        return "passgen-\(Self.formatGenerationTimestamp(session.createdAt))-\(session.shortID).txt"
     }
 
     private func validateSettings() -> String? {
@@ -1984,6 +1992,13 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         formatter.locale = Locale(identifier: "ja_JP")
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    private static func formatGenerationTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyMMddHHmm"
         return formatter.string(from: date)
     }
 
@@ -2770,6 +2785,20 @@ struct NativeGeneratedPassword: Identifiable {
 struct NativePasswordResultMetadata {
     let entropy: Double
     let conditionSummary: String
+}
+
+private struct NativeGenerationSession {
+    let id: UUID
+    let createdAt: Date
+
+    init(id: UUID = UUID(), createdAt: Date = Date()) {
+        self.id = id
+        self.createdAt = createdAt
+    }
+
+    var shortID: String {
+        String(id.uuidString.replacingOccurrences(of: "-", with: "").prefix(12)).lowercased()
+    }
 }
 
 struct NativeGeneratedPasswordListItem: Identifiable {

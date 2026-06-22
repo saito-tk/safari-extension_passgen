@@ -6,11 +6,11 @@
 
 ## タスク
 
-- [ ] `docs/design/text-export.md` に生成IDとデフォルトファイル名仕様を追加する。
-- [ ] 生成開始時に生成結果セット用 UUID と生成開始時刻を保持する。
-- [ ] テキスト出力のデフォルトファイル名を `passgen-yyMMddHHmm-shortid.txt` にする。
-- [ ] README のテキスト出力説明を更新する。
-- [ ] Xcode build で確認する。
+- [x] `docs/design/text-export.md` に生成IDとデフォルトファイル名仕様を追加する。
+- [x] 生成開始時に生成結果セット用 UUID と生成開始時刻を保持する。
+- [x] テキスト出力のデフォルトファイル名を `passgen-yyMMddHHmm-shortid.txt` にする。
+- [x] README のテキスト出力説明を更新する。
+- [x] Xcode build で確認する。
 
 ## 完了条件
 
