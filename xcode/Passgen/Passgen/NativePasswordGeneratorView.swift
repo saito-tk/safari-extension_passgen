@@ -312,6 +312,11 @@ struct NativePasswordGeneratorView: View {
                                             .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
                                             .lineLimit(2)
 
+                                        Text(viewModel.presetConditionSummary(for: preset))
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
+                                            .fixedSize(horizontal: false, vertical: true)
+
                                         if let metadataText = viewModel.presetMetadataText(for: preset) {
                                             Text(metadataText)
                                                 .font(.system(size: 11))
@@ -990,6 +995,10 @@ struct NativePasswordGeneratorView: View {
                     truncatedResultsNotice(palette: palette)
                 }
 
+                if let resultMetadata = viewModel.resultMetadata {
+                    resultMetadataSummary(resultMetadata, palette: palette)
+                }
+
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
                         ForEach(viewModel.results) { password in
@@ -1007,6 +1016,33 @@ struct NativePasswordGeneratorView: View {
         .nativeCardStyle(palette: palette)
     }
 
+    private func resultMetadataSummary(_ metadata: NativePasswordResultMetadata, palette: NativeThemePalette) -> some View {
+        HStack(spacing: 6) {
+            resultMetadataChip("\(formatNumber(metadata.entropy)) bits", palette: palette)
+                .help("生成条件全体で共通の推定総当たり耐性")
+            resultMetadataChip(metadata.conditionSummary, palette: palette)
+                .help("生成に使える文字セット数と文字カテゴリ数")
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func resultMetadataChip(_ text: String, palette: NativeThemePalette) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(palette.ink)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(palette.surfaceStrong)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(palette.panelBorder, lineWidth: 1)
+            )
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
     private func strengthHelpPopover(palette: NativeThemePalette) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -1020,8 +1056,7 @@ struct NativePasswordGeneratorView: View {
                         ("総合", "長さと総当たり耐性を主軸にした最終評価です。警告がある場合は上限を下げます。"),
                         ("長さ", "文字数の評価です。15文字以上を重視し、24文字以上を S とします。"),
                         ("耐性", "総当たり耐性です。固定文字を除いたランダム部分の推定 bits を評価します。"),
-                        ("bits", "理論上の探索空間の目安です。値が大きいほど総当たりで破られにくくなります。"),
-                        ("条件", "生成に使える文字数とカテゴリ数です。文字種の混在を必須条件にはしません。")
+                        ("bits/条件", "同じ生成条件では全件共通のため、一覧の上側に 1 回だけ表示します。")
                     ],
                     palette: palette
                 )
@@ -1280,6 +1315,15 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         results.contains { $0.isTruncated }
     }
 
+    var resultMetadata: NativePasswordResultMetadata? {
+        results.first.map {
+            NativePasswordResultMetadata(
+                entropy: $0.analysis.entropy,
+                conditionSummary: $0.analysis.conditionSummary
+            )
+        }
+    }
+
     var sortedPresets: [NativePasswordPreset] {
         presets.sorted { firstPreset, secondPreset in
             let comparison: ComparisonResult
@@ -1411,6 +1455,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         case .updatedAt:
             return "更新日 \(Self.formatPresetDate(preset.updatedAt))"
         }
+    }
+
+    func presetConditionSummary(for preset: NativePasswordPreset) -> String {
+        Self.conditionSummary(for: preset.settings.applying(to: NativePasswordSettings.defaultSettings))
     }
 
     func deletePreset(id: String) {
@@ -1937,6 +1985,12 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+
+    private static func conditionSummary(for settings: NativePasswordSettings) -> String {
+        let pools = buildPools(using: settings)
+        let allCharacters = combinePools(pools)
+        return "条件 \(formatNumber(allCharacters.count))字/\(formatNumber(pools.count))種"
     }
 
     private static func comparePresetNames(_ firstPreset: NativePasswordPreset, _ secondPreset: NativePasswordPreset) -> ComparisonResult {
@@ -2713,6 +2767,11 @@ struct NativeGeneratedPassword: Identifiable {
     let categoryCount: Int
 }
 
+struct NativePasswordResultMetadata {
+    let entropy: Double
+    let conditionSummary: String
+}
+
 struct NativeGeneratedPasswordListItem: Identifiable {
     let id: UUID
     let displayValue: String
@@ -2889,17 +2948,13 @@ private struct NativePasswordRow: View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 5) {
                 overviewGradeChip
-                entropyChip
                 compactMetricsRow
-                conditionChip
             }
             .fixedSize(horizontal: true, vertical: false)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 5) {
                     overviewGradeChip
-                    entropyChip
-                    conditionChip
                 }
 
                 compactMetricsRow
@@ -2937,41 +2992,6 @@ private struct NativePasswordRow: View {
                 .stroke(gradeBorder(password.analysis.overallGrade), lineWidth: 1)
         )
         .fixedSize(horizontal: true, vertical: false)
-    }
-
-    private var entropyChip: some View {
-        Text("\(formatNumber(password.analysis.entropy)) bits")
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(palette.ink)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(
-                Capsule()
-                    .fill(palette.surfaceStrong)
-            )
-            .overlay(
-                Capsule()
-                    .stroke(palette.panelBorder, lineWidth: 1)
-            )
-            .fixedSize(horizontal: true, vertical: false)
-    }
-
-    private var conditionChip: some View {
-        Text(password.analysis.conditionSummary)
-            .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(palette.muted)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(
-                Capsule()
-                    .fill(palette.surfaceStrong)
-            )
-            .overlay(
-                Capsule()
-                    .stroke(palette.panelBorder, lineWidth: 1)
-            )
-            .help("生成に使える文字セット数と文字カテゴリ数")
-            .fixedSize(horizontal: true, vertical: false)
     }
 
     private func gradeMetricChip(_ metric: NativePasswordGradeMetric) -> some View {
