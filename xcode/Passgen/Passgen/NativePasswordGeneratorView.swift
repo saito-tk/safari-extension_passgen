@@ -2927,10 +2927,12 @@ private struct NativePasswordRow: View {
 
                 compactStrengthSummary
 
-                Text(password.analysis.warningDetail)
-                    .font(.system(size: 11))
-                    .foregroundStyle(palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+                if !password.analysis.warningDetail.isEmpty {
+                    Text(password.analysis.warningDetail)
+                        .font(.system(size: 11))
+                        .foregroundStyle(palette.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             VStack(spacing: 6) {
@@ -3806,9 +3808,18 @@ private nonisolated func getLengthAndEntropyMessages(lengthGrade: NativePassword
 
     if isPasswordGrade(lengthGrade, atMost: .d) {
         messages.append("文字数が短めです。15文字以上を推奨します。")
+    } else if lengthGrade == .c {
+        messages.append("15文字は最低目安です。重要な用途では20文字以上を推奨します。")
+    } else if lengthGrade == .b {
+        messages.append("重要な用途では20文字以上にすると余裕が出ます。")
     }
+
     if isPasswordGrade(bruteForceGrade, atMost: .d) {
         messages.append("総当たり耐性が低めです。文字数を増やすと改善します。")
+    } else if bruteForceGrade == .c {
+        messages.append("総当たり耐性は最低目安です。100 bits以上を推奨します。")
+    } else if bruteForceGrade == .b {
+        messages.append("重要な用途では100 bits以上にすると余裕が出ます。")
     }
 
     return messages
@@ -3820,10 +3831,6 @@ private nonisolated func getBreadthMessage(charsetSize: Int) -> String? {
     }
 
     return nil
-}
-
-private nonisolated func getPositivePasswordAnalysisMessage() -> String {
-    "目立つ既知リスクや推測パターンは検出されていません。総合評価も確認してください。"
 }
 
 private nonisolated func getOverallPasswordGrade(
@@ -3880,10 +3887,6 @@ private nonisolated func getPasswordAnalysisMessages(
     }
     if let breadthMessage = getBreadthMessage(charsetSize: charsetSize) {
         messages.append(breadthMessage)
-    }
-
-    if messages.isEmpty {
-        return [getPositivePasswordAnalysisMessage()]
     }
 
     return Array(messages.prefix(3))
