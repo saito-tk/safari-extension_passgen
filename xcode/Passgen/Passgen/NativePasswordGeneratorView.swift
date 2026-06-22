@@ -1342,12 +1342,24 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     @Published var lengthText: String {
         didSet {
+            let normalizedText = normalizeFullWidthDigits(lengthText)
+            if normalizedText != lengthText {
+                lengthText = normalizedText
+                return
+            }
+
             clearNumericCorrectionWarningIfNeeded(previousText: oldValue, currentText: lengthText)
         }
     }
 
     @Published var countText: String {
         didSet {
+            let normalizedText = normalizeFullWidthDigits(countText)
+            if normalizedText != countText {
+                countText = normalizedText
+                return
+            }
+
             clearNumericCorrectionWarningIfNeeded(previousText: oldValue, currentText: countText)
         }
     }
