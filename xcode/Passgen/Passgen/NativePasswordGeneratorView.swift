@@ -1452,10 +1452,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     var generationButtonTitle: String {
         if isCancellingGeneration {
-            return "中止処理中"
+            return "停止中..."
         }
 
-        return isGenerating ? "中止" : "生成"
+        return isGenerating ? "停止" : "生成"
     }
 
     init() {
@@ -1949,7 +1949,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                     self.isGenerating = false
                     self.isCancellingGeneration = false
                     self.generationTask = nil
-                    self.resultStatus = NativeInlineStatus(message: "生成を中止しました。")
+                    self.resultStatus = NativeInlineStatus(message: "生成を停止しました。")
                 }
             } catch {
                 await MainActor.run {
