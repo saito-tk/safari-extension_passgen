@@ -396,8 +396,8 @@ struct NativePasswordGeneratorView: View {
 
                 Spacer(minLength: 0)
 
-                Button(action: viewModel.generate) {
-                    Text(viewModel.isGenerating ? "生成中..." : "生成")
+                Button(action: viewModel.toggleGeneration) {
+                    Text(viewModel.isGenerating ? "中止" : "生成")
                         .font(.system(size: 14, weight: .semibold))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
@@ -412,7 +412,6 @@ struct NativePasswordGeneratorView: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .disabled(viewModel.isGenerating)
             }
 
             HStack(spacing: 10) {
@@ -1931,20 +1930,39 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
                 await MainActor.run {
                     self.isGenerating = false
+                    self.generationTask = nil
                 }
             } catch is CancellationError {
                 await MainActor.run {
                     self.isGenerating = false
-                    self.generatedPasswordStore = [:]
+                    self.generationTask = nil
+                    self.resultStatus = NativeInlineStatus(message: "生成を中止しました。")
                 }
             } catch {
                 await MainActor.run {
                     self.isGenerating = false
+                    self.generationTask = nil
                     self.generatedPasswordStore = [:]
                     self.resultStatus = NativeInlineStatus(message: "条件に合うパスワードを生成できませんでした。", tone: .error)
                 }
             }
         }
+    }
+
+    func toggleGeneration() {
+        if isGenerating {
+            cancelGeneration()
+        } else {
+            generate()
+        }
+    }
+
+    func cancelGeneration() {
+        guard isGenerating else {
+            return
+        }
+
+        generationTask?.cancel()
     }
 
     func copyPassword(id: UUID) {
@@ -2301,6 +2319,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
 
         while passwordCharacters.count < settings.length {
+            try Task.checkCancellation()
             let remainingSlots = settings.length - passwordCharacters.count
             let candidatePools = try selectCandidatePools(
                 pools: pools,
@@ -2345,6 +2364,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
             if iterationsSinceYield >= nativePasswordYieldInterval {
                 iterationsSinceYield = 0
+                try Task.checkCancellation()
                 await Task.yield()
             }
         }
@@ -2374,11 +2394,13 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         var iterationsSinceYield = 0
 
         while passwordCharacters.count < length {
+            try Task.checkCancellation()
             passwordCharacters.append(characters[try randomInt(upperBound: characters.count)])
             iterationsSinceYield += 1
 
             if iterationsSinceYield >= nativePasswordYieldInterval {
                 iterationsSinceYield = 0
+                try Task.checkCancellation()
                 await Task.yield()
             }
         }
