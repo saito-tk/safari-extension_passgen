@@ -16,7 +16,7 @@ final class SettingsWindowController: NSWindowController {
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
-        window.setContentSize(NSSize(width: 360, height: 270))
+        window.setContentSize(NSSize(width: 390, height: 330))
         super.init(window: window)
     }
 
@@ -30,6 +30,7 @@ private struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedAppearanceMode = AppPreferences.shared.appearanceMode
     @State private var selectedDisplayTheme = AppPreferences.shared.displayTheme
+    private let displayThemeColumns = Array(repeating: GridItem(.fixed(34), spacing: 10), count: 7)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -53,7 +54,7 @@ private struct SettingsView: View {
                 Text("表示テーマ")
                     .font(.system(size: 15, weight: .semibold))
 
-                HStack(spacing: 12) {
+                LazyVGrid(columns: displayThemeColumns, alignment: .leading, spacing: 12) {
                     ForEach(NativeTheme.allCases) { theme in
                         displayThemeButton(theme)
                     }

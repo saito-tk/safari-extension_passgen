@@ -3590,11 +3590,17 @@ enum NativeGenerationMode: String, CaseIterable, Codable, Identifiable {
 enum NativeTheme: String, CaseIterable, Codable, Identifiable {
     case blue
     case green
+    case teal
+    case mint
+    case cyan
+    case indigo
+    case purple
+    case lavender
     case pink
     case red
-    case yellow
     case orange
-    case purple
+    case yellow
+    case gray
 
     var id: String { rawValue }
 
@@ -3602,11 +3608,17 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .blue: return "青"
         case .green: return "緑"
-        case .pink: return "ピンク"
-        case .red: return "赤"
-        case .yellow: return "黄色"
-        case .orange: return "オレンジ"
+        case .teal: return "ティール"
+        case .mint: return "ミント"
+        case .cyan: return "シアン"
+        case .indigo: return "インディゴ"
         case .purple: return "紫"
+        case .lavender: return "ラベンダー"
+        case .pink: return "ピンク"
+        case .red: return "ローズ"
+        case .orange: return "オレンジ"
+        case .yellow: return "黄色"
+        case .gray: return "グレー"
         }
     }
 
@@ -3684,6 +3696,150 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
                 disabledText: Color(hex: 0x7183A0),
                 danger: Color(hex: 0xF07A6A)
             )
+        case (.teal, .light):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0xEAF8F7),
+                backgroundBottom: Color(hex: 0xD2EEEB),
+                panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
+                panelBorder: Color(hex: 0x3D7E78, opacity: 0.14),
+                ink: Color(hex: 0x142033),
+                muted: Color(hex: 0x587B78),
+                accent: Color(hex: 0x239A8B),
+                accentStrong: Color(hex: 0x197267),
+                accentSoft: Color(hex: 0xD7F2EE),
+                disabledBackground: Color(hex: 0xA9B4C6, opacity: 0.18),
+                disabledText: Color(hex: 0x8C98AA),
+                danger: Color(hex: 0xB54D3C)
+            )
+        case (.teal, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x0F1818),
+                backgroundBottom: Color(hex: 0x152424),
+                panel: Color(hex: 0x162120, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x1B2B2A, opacity: 0.94),
+                surface: Color(hex: 0x213433, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x283D3B, opacity: 0.96),
+                panelBorder: Color(hex: 0x69AAA2, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0x9FBDBA),
+                accent: Color(hex: 0x6DB8AD),
+                accentStrong: Color(hex: 0x4D988E),
+                accentSoft: Color(hex: 0x213F3B),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
+            )
+        case (.mint, .light):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0xEFFAF5),
+                backgroundBottom: Color(hex: 0xDAF2E8),
+                panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
+                panelBorder: Color(hex: 0x51846E, opacity: 0.14),
+                ink: Color(hex: 0x142033),
+                muted: Color(hex: 0x607D70),
+                accent: Color(hex: 0x45A777),
+                accentStrong: Color(hex: 0x2F7D59),
+                accentSoft: Color(hex: 0xDDF5EA),
+                disabledBackground: Color(hex: 0xA9B4C6, opacity: 0.18),
+                disabledText: Color(hex: 0x8C98AA),
+                danger: Color(hex: 0xB54D3C)
+            )
+        case (.mint, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x101816),
+                backgroundBottom: Color(hex: 0x17231F),
+                panel: Color(hex: 0x17211E, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x1D2B27, opacity: 0.94),
+                surface: Color(hex: 0x24342F, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x2B3D37, opacity: 0.96),
+                panelBorder: Color(hex: 0x7CAE96, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0xA8C0B4),
+                accent: Color(hex: 0x82BA9A),
+                accentStrong: Color(hex: 0x619B79),
+                accentSoft: Color(hex: 0x263F34),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
+            )
+        case (.cyan, .light):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0xECF8FC),
+                backgroundBottom: Color(hex: 0xD5EEF6),
+                panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
+                panelBorder: Color(hex: 0x3B7890, opacity: 0.14),
+                ink: Color(hex: 0x142033),
+                muted: Color(hex: 0x597989),
+                accent: Color(hex: 0x2598BC),
+                accentStrong: Color(hex: 0x1A7190),
+                accentSoft: Color(hex: 0xD8F1F8),
+                disabledBackground: Color(hex: 0xA9B4C6, opacity: 0.18),
+                disabledText: Color(hex: 0x8C98AA),
+                danger: Color(hex: 0xB54D3C)
+            )
+        case (.cyan, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x0F171B),
+                backgroundBottom: Color(hex: 0x15222A),
+                panel: Color(hex: 0x162027, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x1B2932, opacity: 0.94),
+                surface: Color(hex: 0x21323D, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x283A46, opacity: 0.96),
+                panelBorder: Color(hex: 0x6BA6BA, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0xA0B9C3),
+                accent: Color(hex: 0x72B4C9),
+                accentStrong: Color(hex: 0x5094AA),
+                accentSoft: Color(hex: 0x233D48),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
+            )
+        case (.indigo, .light):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0xF0F3FF),
+                backgroundBottom: Color(hex: 0xDDE5FF),
+                panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
+                panelBorder: Color(hex: 0x4F5F9E, opacity: 0.14),
+                ink: Color(hex: 0x142033),
+                muted: Color(hex: 0x626B8D),
+                accent: Color(hex: 0x5366D8),
+                accentStrong: Color(hex: 0x3B4AA6),
+                accentSoft: Color(hex: 0xE1E6FF),
+                disabledBackground: Color(hex: 0xA9B4C6, opacity: 0.18),
+                disabledText: Color(hex: 0x8C98AA),
+                danger: Color(hex: 0xB54D3C)
+            )
+        case (.indigo, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x121521),
+                backgroundBottom: Color(hex: 0x1A1F31),
+                panel: Color(hex: 0x1A1D2B, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x222638, opacity: 0.94),
+                surface: Color(hex: 0x292E43, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x30364E, opacity: 0.96),
+                panelBorder: Color(hex: 0x8993D0, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0xB0B5CE),
+                accent: Color(hex: 0x929BDA),
+                accentStrong: Color(hex: 0x727CC4),
+                accentSoft: Color(hex: 0x30365B),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
+            )
         case (.pink, .light):
             return NativeThemePalette(
                 backgroundTop: Color(hex: 0xFFF0F7),
@@ -3704,57 +3860,57 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
             )
         case (.pink, .dark):
             return NativeThemePalette(
-                backgroundTop: Color(hex: 0x1C121A),
-                backgroundBottom: Color(hex: 0x2A1623),
-                panel: Color(hex: 0x271927, opacity: 0.96),
-                surfaceSoft: Color(hex: 0x341E31, opacity: 0.94),
-                surface: Color(hex: 0x40233C, opacity: 0.94),
-                surfaceStrong: Color(hex: 0x4A2945, opacity: 0.96),
-                panelBorder: Color(hex: 0xFF8AC2, opacity: 0.18),
-                ink: Color(hex: 0xFFF3FA),
-                muted: Color(hex: 0xD3B2C5),
-                accent: Color(hex: 0xFF82BF),
-                accentStrong: Color(hex: 0xE45A9F),
-                accentSoft: Color(hex: 0x4A2540),
-                disabledBackground: Color(hex: 0x3B2E3A, opacity: 0.96),
-                disabledText: Color(hex: 0xA88FA1),
-                danger: Color(hex: 0xFF8A78)
+                backgroundTop: Color(hex: 0x1A1419),
+                backgroundBottom: Color(hex: 0x261A23),
+                panel: Color(hex: 0x261C24, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x30242D, opacity: 0.94),
+                surface: Color(hex: 0x392B35, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x42323E, opacity: 0.96),
+                panelBorder: Color(hex: 0xC18AA8, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0xC7B0BD),
+                accent: Color(hex: 0xD28AAC),
+                accentStrong: Color(hex: 0xB5678E),
+                accentSoft: Color(hex: 0x4A3040),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
             )
         case (.red, .light):
             return NativeThemePalette(
-                backgroundTop: Color(hex: 0xFFF0F0),
-                backgroundBottom: Color(hex: 0xFFD9D9),
+                backgroundTop: Color(hex: 0xFFF1F2),
+                backgroundBottom: Color(hex: 0xFFE0E2),
                 panel: Color.white.opacity(0.92),
                 surfaceSoft: Color.white.opacity(0.72),
                 surface: Color.white.opacity(0.82),
                 surfaceStrong: Color.white.opacity(0.95),
-                panelBorder: Color(hex: 0xA34D4D, opacity: 0.14),
+                panelBorder: Color(hex: 0xA85C64, opacity: 0.14),
                 ink: Color(hex: 0x142033),
-                muted: Color(hex: 0x8A6464),
-                accent: Color(hex: 0xDC4F4F),
-                accentStrong: Color(hex: 0xB33838),
-                accentSoft: Color(hex: 0xFFE0E0),
+                muted: Color(hex: 0x876368),
+                accent: Color(hex: 0xCC5B66),
+                accentStrong: Color(hex: 0x9D414B),
+                accentSoft: Color(hex: 0xFFE1E5),
                 disabledBackground: Color(hex: 0xA9B4C6, opacity: 0.18),
                 disabledText: Color(hex: 0x8C98AA),
                 danger: Color(hex: 0xB54D3C)
             )
         case (.red, .dark):
             return NativeThemePalette(
-                backgroundTop: Color(hex: 0x1C1212),
-                backgroundBottom: Color(hex: 0x2A1717),
-                panel: Color(hex: 0x281919, opacity: 0.96),
-                surfaceSoft: Color(hex: 0x351F1F, opacity: 0.94),
-                surface: Color(hex: 0x402525, opacity: 0.94),
-                surfaceStrong: Color(hex: 0x4B2B2B, opacity: 0.96),
-                panelBorder: Color(hex: 0xFF8D8D, opacity: 0.18),
-                ink: Color(hex: 0xFFF4F4),
-                muted: Color(hex: 0xD0B0B0),
-                accent: Color(hex: 0xFF7A7A),
-                accentStrong: Color(hex: 0xE65C5C),
-                accentSoft: Color(hex: 0x4A2828),
-                disabledBackground: Color(hex: 0x3B2E3A, opacity: 0.96),
-                disabledText: Color(hex: 0xA88FA1),
-                danger: Color(hex: 0xFF8A78)
+                backgroundTop: Color(hex: 0x1A1415),
+                backgroundBottom: Color(hex: 0x251B1D),
+                panel: Color(hex: 0x251C1F, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x2F2427, opacity: 0.94),
+                surface: Color(hex: 0x382B2F, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x413337, opacity: 0.96),
+                panelBorder: Color(hex: 0xBE8C92, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0xC5B0B3),
+                accent: Color(hex: 0xCF8A91),
+                accentStrong: Color(hex: 0xAE6871),
+                accentSoft: Color(hex: 0x493234),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
             )
         case (.yellow, .light):
             return NativeThemePalette(
@@ -3776,21 +3932,21 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
             )
         case (.yellow, .dark):
             return NativeThemePalette(
-                backgroundTop: Color(hex: 0x1B1810),
-                backgroundBottom: Color(hex: 0x292313),
-                panel: Color(hex: 0x272111, opacity: 0.96),
-                surfaceSoft: Color(hex: 0x342A16, opacity: 0.94),
-                surface: Color(hex: 0x40331B, opacity: 0.94),
-                surfaceStrong: Color(hex: 0x4A3C20, opacity: 0.96),
-                panelBorder: Color(hex: 0xFFD15E, opacity: 0.18),
-                ink: Color(hex: 0xFFF9EA),
-                muted: Color(hex: 0xD8C18F),
-                accent: Color(hex: 0xF0C24A),
-                accentStrong: Color(hex: 0xD9A624),
-                accentSoft: Color(hex: 0x493A1A),
-                disabledBackground: Color(hex: 0x3A3425, opacity: 0.96),
-                disabledText: Color(hex: 0xA99B77),
-                danger: Color(hex: 0xFF9872)
+                backgroundTop: Color(hex: 0x191711),
+                backgroundBottom: Color(hex: 0x242117),
+                panel: Color(hex: 0x242117, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x2D291D, opacity: 0.94),
+                surface: Color(hex: 0x363124, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x403A2A, opacity: 0.96),
+                panelBorder: Color(hex: 0xB8A276, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0xC5B99D),
+                accent: Color(hex: 0xC7AA68),
+                accentStrong: Color(hex: 0xA88943),
+                accentSoft: Color(hex: 0x443B25),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
             )
         case (.orange, .light):
             return NativeThemePalette(
@@ -3812,21 +3968,21 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
             )
         case (.orange, .dark):
             return NativeThemePalette(
-                backgroundTop: Color(hex: 0x1B1410),
-                backgroundBottom: Color(hex: 0x2A1C12),
-                panel: Color(hex: 0x271B14, opacity: 0.96),
-                surfaceSoft: Color(hex: 0x342218, opacity: 0.94),
-                surface: Color(hex: 0x402A1D, opacity: 0.94),
-                surfaceStrong: Color(hex: 0x4B3120, opacity: 0.96),
-                panelBorder: Color(hex: 0xFFAB72, opacity: 0.18),
-                ink: Color(hex: 0xFFF6EE),
-                muted: Color(hex: 0xD6B49A),
-                accent: Color(hex: 0xFF9A57),
-                accentStrong: Color(hex: 0xF07C2C),
-                accentSoft: Color(hex: 0x4A301E),
-                disabledBackground: Color(hex: 0x3A3025, opacity: 0.96),
-                disabledText: Color(hex: 0xA99484),
-                danger: Color(hex: 0xFF9872)
+                backgroundTop: Color(hex: 0x1A1511),
+                backgroundBottom: Color(hex: 0x251E17),
+                panel: Color(hex: 0x251E18, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x2F261E, opacity: 0.94),
+                surface: Color(hex: 0x382D24, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x42352A, opacity: 0.96),
+                panelBorder: Color(hex: 0xBE9274, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0xC4B2A2),
+                accent: Color(hex: 0xC99570),
+                accentStrong: Color(hex: 0xAA724D),
+                accentSoft: Color(hex: 0x4A3728),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
             )
         case (.purple, .light):
             return NativeThemePalette(
@@ -3848,21 +4004,93 @@ enum NativeTheme: String, CaseIterable, Codable, Identifiable {
             )
         case (.purple, .dark):
             return NativeThemePalette(
-                backgroundTop: Color(hex: 0x15121D),
-                backgroundBottom: Color(hex: 0x20162A),
-                panel: Color(hex: 0x211927, opacity: 0.96),
-                surfaceSoft: Color(hex: 0x2B2034, opacity: 0.94),
-                surface: Color(hex: 0x352740, opacity: 0.94),
-                surfaceStrong: Color(hex: 0x3F2E4B, opacity: 0.96),
-                panelBorder: Color(hex: 0xB196FF, opacity: 0.18),
-                ink: Color(hex: 0xF8F3FF),
-                muted: Color(hex: 0xC0B0E0),
-                accent: Color(hex: 0xA88BFF),
-                accentStrong: Color(hex: 0x8566F0),
-                accentSoft: Color(hex: 0x3F2C63),
-                disabledBackground: Color(hex: 0x322A3D, opacity: 0.96),
-                disabledText: Color(hex: 0x988AB1),
-                danger: Color(hex: 0xFF8A78)
+                backgroundTop: Color(hex: 0x15131D),
+                backgroundBottom: Color(hex: 0x201A2B),
+                panel: Color(hex: 0x211B28, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x2A2234, opacity: 0.94),
+                surface: Color(hex: 0x322A3E, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x3A3148, opacity: 0.96),
+                panelBorder: Color(hex: 0xA18FCF, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0xBDB0D4),
+                accent: Color(hex: 0xA895D8),
+                accentStrong: Color(hex: 0x8770C2),
+                accentSoft: Color(hex: 0x3A315B),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
+            )
+        case (.lavender, .light):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0xF8F2FF),
+                backgroundBottom: Color(hex: 0xE9DCFA),
+                panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
+                panelBorder: Color(hex: 0x7D679B, opacity: 0.14),
+                ink: Color(hex: 0x142033),
+                muted: Color(hex: 0x756A86),
+                accent: Color(hex: 0x9A6FD0),
+                accentStrong: Color(hex: 0x7350A3),
+                accentSoft: Color(hex: 0xEEE2FB),
+                disabledBackground: Color(hex: 0xA9B4C6, opacity: 0.18),
+                disabledText: Color(hex: 0x8C98AA),
+                danger: Color(hex: 0xB54D3C)
+            )
+        case (.lavender, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x17151C),
+                backgroundBottom: Color(hex: 0x211C29),
+                panel: Color(hex: 0x211D27, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x2A2532, opacity: 0.94),
+                surface: Color(hex: 0x332D3D, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x3C3547, opacity: 0.96),
+                panelBorder: Color(hex: 0xAA94C5, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0xC1B5CE),
+                accent: Color(hex: 0xB49AD0),
+                accentStrong: Color(hex: 0x9575B9),
+                accentSoft: Color(hex: 0x413451),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
+            )
+        case (.gray, .light):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0xF3F6FA),
+                backgroundBottom: Color(hex: 0xE2E8F0),
+                panel: Color.white.opacity(0.92),
+                surfaceSoft: Color.white.opacity(0.72),
+                surface: Color.white.opacity(0.82),
+                surfaceStrong: Color.white.opacity(0.95),
+                panelBorder: Color(hex: 0x64748B, opacity: 0.14),
+                ink: Color(hex: 0x142033),
+                muted: Color(hex: 0x64748B),
+                accent: Color(hex: 0x667085),
+                accentStrong: Color(hex: 0x475467),
+                accentSoft: Color(hex: 0xE4E7EC),
+                disabledBackground: Color(hex: 0xA9B4C6, opacity: 0.18),
+                disabledText: Color(hex: 0x8C98AA),
+                danger: Color(hex: 0xB54D3C)
+            )
+        case (.gray, .dark):
+            return NativeThemePalette(
+                backgroundTop: Color(hex: 0x11151B),
+                backgroundBottom: Color(hex: 0x1A2029),
+                panel: Color(hex: 0x1B2028, opacity: 0.96),
+                surfaceSoft: Color(hex: 0x242A34, opacity: 0.94),
+                surface: Color(hex: 0x2B323E, opacity: 0.94),
+                surfaceStrong: Color(hex: 0x333B48, opacity: 0.96),
+                panelBorder: Color(hex: 0x8A93A3, opacity: 0.17),
+                ink: Color(hex: 0xF4F7FB),
+                muted: Color(hex: 0xAEB6C3),
+                accent: Color(hex: 0x9CA6B5),
+                accentStrong: Color(hex: 0x7D8796),
+                accentSoft: Color(hex: 0x343C49),
+                disabledBackground: Color(hex: 0x2A313C, opacity: 0.96),
+                disabledText: Color(hex: 0x7F8A9A),
+                danger: Color(hex: 0xE08378)
             )
         }
     }
