@@ -397,7 +397,7 @@ struct NativePasswordGeneratorView: View {
                 Spacer(minLength: 0)
 
                 Button(action: viewModel.toggleGeneration) {
-                    Text(viewModel.isGenerating ? "中止" : "生成")
+                    Text(viewModel.generationButtonTitle)
                         .font(.system(size: 14, weight: .semibold))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
@@ -412,6 +412,7 @@ struct NativePasswordGeneratorView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .disabled(viewModel.isCancellingGeneration)
             }
 
             HStack(spacing: 10) {
@@ -1426,6 +1427,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var progressCompleted = 0
     @Published var progressTotal = 0
     @Published var isGenerating = false
+    @Published var isCancellingGeneration = false
     @Published var isSavedSettingsSidebarVisible = true
     @Published var presetNameText = ""
     @Published var presetStatus = NativeInlineStatus()
@@ -1446,6 +1448,14 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     var countInputRangeText: String {
         formatCountRange(nativeMinPasswordCount, Self.getMaxCountForLength(settings.length))
+    }
+
+    var generationButtonTitle: String {
+        if isCancellingGeneration {
+            return "中止処理中"
+        }
+
+        return isGenerating ? "中止" : "生成"
     }
 
     init() {
@@ -1903,6 +1913,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         progressCompleted = 0
         progressTotal = settings.count
         isGenerating = true
+        isCancellingGeneration = false
 
         let snapshot = settings
 
@@ -1930,17 +1941,20 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
                 await MainActor.run {
                     self.isGenerating = false
+                    self.isCancellingGeneration = false
                     self.generationTask = nil
                 }
             } catch is CancellationError {
                 await MainActor.run {
                     self.isGenerating = false
+                    self.isCancellingGeneration = false
                     self.generationTask = nil
                     self.resultStatus = NativeInlineStatus(message: "生成を中止しました。")
                 }
             } catch {
                 await MainActor.run {
                     self.isGenerating = false
+                    self.isCancellingGeneration = false
                     self.generationTask = nil
                     self.generatedPasswordStore = [:]
                     self.resultStatus = NativeInlineStatus(message: "条件に合うパスワードを生成できませんでした。", tone: .error)
@@ -1958,10 +1972,11 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func cancelGeneration() {
-        guard isGenerating else {
+        guard isGenerating, !isCancellingGeneration else {
             return
         }
 
+        isCancellingGeneration = true
         generationTask?.cancel()
     }
 
