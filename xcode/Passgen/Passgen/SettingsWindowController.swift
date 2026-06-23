@@ -91,19 +91,34 @@ private struct SettingsView: View {
         return Button {
             selectedDisplayTheme = theme
         } label: {
-            Circle()
-                .fill(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 26, height: 26)
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.92), lineWidth: 2)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(isSelected ? palette.accentStrong : Color.clear, lineWidth: 3)
-                        .frame(width: 34, height: 34)
-                )
-                .contentShape(Circle())
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 26, height: 26)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.primary.opacity(colorScheme == .dark ? 0.28 : 0.16), lineWidth: 1)
+                    )
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .shadow(color: .black.opacity(0.32), radius: 1, x: 0, y: 1)
+                }
+            }
+            .frame(width: 34, height: 34)
+            .overlay(
+                Circle()
+                    .stroke(isSelected ? palette.accentStrong : Color.clear, lineWidth: 2)
+                    .frame(width: 32, height: 32)
+            )
+            .overlay(
+                Circle()
+                    .stroke(isSelected ? palette.accent.opacity(0.24) : Color.clear, lineWidth: 4)
+                    .frame(width: 38, height: 38)
+            )
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .help(theme.displayName)
