@@ -319,7 +319,7 @@ struct NativePasswordGeneratorView: View {
                     ForEach(viewModel.sortedPresets) { preset in
                         let isSelected = viewModel.selectedPresetID == preset.id
 
-                        HStack(spacing: 10) {
+                        HStack(spacing: 0) {
                             Button {
                                 viewModel.selectPreset(id: preset.id)
                             } label: {
@@ -349,12 +349,15 @@ struct NativePasswordGeneratorView: View {
 
                                     Spacer(minLength: 0)
                                 }
+                                .padding(.leading, 12)
+                                .padding(.vertical, 12)
+                                .padding(.trailing, 10)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .disabled(viewModel.isGenerating)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
                             Menu {
                                 Button("削除", role: .destructive) {
@@ -366,11 +369,11 @@ struct NativePasswordGeneratorView: View {
                                     .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
                                     .frame(width: 28, height: 28)
                             }
+                            .padding(.trailing, 12)
                             .menuStyle(.borderlessButton)
                             .disabled(viewModel.isGenerating)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .fill(isSelected ? palette.accent.opacity(0.24) : palette.surface)
