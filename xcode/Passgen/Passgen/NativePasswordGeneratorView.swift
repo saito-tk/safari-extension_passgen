@@ -64,6 +64,7 @@ struct NativePasswordGeneratorView: View {
     @FocusState private var focusedField: NativeFocusedField?
     @State private var activeCharacterTab: NativeCharacterTab = .uppercase
     @State private var presetPendingDeletion: NativePasswordPreset?
+    @State private var isSavedSettingsHelpPresented = false
     @State private var isCharacterEditorHelpPresented = false
     @State private var isRulesHelpPresented = false
     @State private var isStrengthHelpPresented = false
@@ -171,6 +172,19 @@ struct NativePasswordGeneratorView: View {
                 Text("保存済み設定")
                     .font(.system(size: 19, weight: .bold))
                     .foregroundStyle(palette.ink)
+
+                Button {
+                    isSavedSettingsHelpPresented.toggle()
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(palette.accentStrong)
+                }
+                .buttonStyle(.plain)
+                .help("保存済み設定の説明")
+                .popover(isPresented: $isSavedSettingsHelpPresented, arrowEdge: .top) {
+                    savedSettingsHelpPopover(palette: palette)
+                }
 
                 Spacer(minLength: 0)
 
@@ -1107,6 +1121,48 @@ struct NativePasswordGeneratorView: View {
         .background(palette.surface)
     }
 
+    private func savedSettingsHelpPopover(palette: NativeThemePalette) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("保存済み設定について")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(palette.ink)
+
+                strengthHelpSection(
+                    title: "保存と更新",
+                    rows: [
+                        ("保存", "現在の文字数、件数、文字選択、生成ルールを名前付きのプリセットとして保存します。"),
+                        ("更新", "プリセット選択中に内容や名前を変えた場合は、保存済みのプリセットを更新できます。"),
+                        ("テーマ", "表示テーマはアプリ全体の見た目設定なので、プリセットには含まれません。")
+                    ],
+                    palette: palette
+                )
+
+                strengthHelpSection(
+                    title: "一覧の使い方",
+                    rows: [
+                        ("選択", "プリセットを選ぶと、その設定が中央カラムに反映されます。"),
+                        ("選択解除", "選択中のプリセットをもう一度選ぶと、選択前の未保存設定に戻ります。"),
+                        ("ソート", "名前、作成日、更新日で並び替えできます。日付で並べると、該当する日付も表示します。")
+                    ],
+                    palette: palette
+                )
+
+                strengthHelpSection(
+                    title: "削除",
+                    rows: [
+                        ("設定ボタン", "各プリセット行の設定ボタンから削除を選べます。"),
+                        ("確認", "削除前に確認ダイアログを表示します。削除するとプリセット未選択の状態に戻ります。")
+                    ],
+                    palette: palette
+                )
+            }
+            .padding(16)
+        }
+        .frame(width: 430, height: 430, alignment: .leading)
+        .background(palette.surface)
+    }
+
     private func generationRulesHelpPopover(palette: NativeThemePalette) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -1339,6 +1395,7 @@ private struct NativeSwiftLayoutMetrics {
 @MainActor
 final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var settings: NativePasswordSettings
+    private var isApplyingNumericCorrection = false
 
     @Published var lengthText: String {
         didSet {
@@ -2020,8 +2077,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
         settings.length = normalizedLength
         settings.count = normalizedCount
+        isApplyingNumericCorrection = true
         lengthText = String(normalizedLength)
         countText = String(normalizedCount)
+        isApplyingNumericCorrection = false
         persistSettings()
 
         if lengthAdjusted && (source == .length || source == nil) {
@@ -2039,7 +2098,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     private func clearNumericCorrectionWarningIfNeeded(previousText: String, currentText: String) {
-        guard previousText != currentText, settingsStatus.tone == .warning else {
+        guard !isApplyingNumericCorrection, previousText != currentText, settingsStatus.tone == .warning else {
             return
         }
 
