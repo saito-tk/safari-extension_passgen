@@ -1677,7 +1677,8 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     func presetConditionSummary(for preset: NativePasswordPreset) -> String {
         let settings = preset.settings.applying(to: NativePasswordSettings.defaultSettings)
-        return "文字数 \(formatNumber(settings.length)) / \(Self.conditionSummary(for: settings))"
+        let condition = Self.conditionSummary(for: settings).replacingOccurrences(of: "/", with: " / ")
+        return "文字数 \(formatNumber(settings.length))\n\(condition)"
     }
 
     func deletePreset(id: String) {
