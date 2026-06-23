@@ -993,7 +993,7 @@ struct NativePasswordGeneratorView: View {
                 }
 
                 if let resultMetadata = viewModel.resultMetadata {
-                    resultMetadataSummary(resultMetadata, palette: palette)
+                    resultMetadataSummary(resultMetadata, generationShortID: viewModel.generationShortIDText, palette: palette)
                 }
 
                 ScrollView {
@@ -1013,13 +1013,17 @@ struct NativePasswordGeneratorView: View {
         .nativeCardStyle(palette: palette)
     }
 
-    private func resultMetadataSummary(_ metadata: NativePasswordResultMetadata, palette: NativeThemePalette) -> some View {
+    private func resultMetadataSummary(_ metadata: NativePasswordResultMetadata, generationShortID: String?, palette: NativeThemePalette) -> some View {
         HStack(spacing: 6) {
             resultMetadataChip("推定エントロピー: \(formatNumber(metadata.entropy)) bits", palette: palette)
                 .help("固定文字を除いた生成条件全体で共通の推定エントロピー")
             resultMetadataChip(metadata.conditionSummary, palette: palette)
                 .help("生成に使える文字セット数と文字カテゴリ数")
             Spacer(minLength: 0)
+            if let generationShortID {
+                resultMetadataChip("生成ID: \(generationShortID)", palette: palette)
+                    .help("この生成結果セットを識別する短縮ID。テキスト出力ファイル名にも使われます。")
+            }
         }
     }
 
@@ -1528,6 +1532,14 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                 conditionSummary: $0.analysis.conditionSummary
             )
         }
+    }
+
+    var generationShortIDText: String? {
+        guard !results.isEmpty, let currentGenerationSession else {
+            return nil
+        }
+
+        return currentGenerationSession.shortID
     }
 
     var sortedPresets: [NativePasswordPreset] {

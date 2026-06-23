@@ -9,9 +9,9 @@
 - [x] `docs/design/text-export.md` に生成IDの画面表示仕様を追加する。
 - [x] `docs/design/password-strength-analysis.md` に生成結果共通メタ情報として生成IDを追記する。
 - [x] `README.md` に生成IDの画面表示を追記する。
-- [ ] 生成結果一覧の共通メタ情報に `生成ID: shortid` を表示する。
-- [ ] 生成結果が空の場合は生成IDを表示しない。
-- [ ] Xcode build で確認する。
+- [x] 生成結果一覧の共通メタ情報に `生成ID: shortid` を表示する。
+- [x] 生成結果が空の場合は生成IDを表示しない。
+- [x] Xcode build で確認する。
 
 ## 確認観点
 
