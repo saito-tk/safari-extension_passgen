@@ -3237,6 +3237,25 @@ private struct NativePasswordRow: View {
                         }
                     }
                     .frame(width: 38, height: 38)
+                    .overlay(alignment: .bottom) {
+                        if showCopyFeedback {
+                            Text("コピーしました")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(palette.accentStrong)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule()
+                                        .fill(palette.accentSoft)
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .stroke(palette.accent.opacity(0.35), lineWidth: 1)
+                                )
+                                .offset(y: 28)
+                                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
             }
@@ -3251,25 +3270,6 @@ private struct NativePasswordRow: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(palette.panelBorder, lineWidth: 1)
         )
-        .overlay(alignment: .trailing) {
-            if showCopyFeedback {
-                Text("コピーしました")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(palette.accentStrong)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(palette.accentSoft)
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(palette.accent.opacity(0.35), lineWidth: 1)
-                    )
-                    .padding(.trailing, 58)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
-            }
-        }
         .animation(.easeOut(duration: 0.16), value: showCopyFeedback)
         .onDisappear {
             copyFeedbackTask?.cancel()
