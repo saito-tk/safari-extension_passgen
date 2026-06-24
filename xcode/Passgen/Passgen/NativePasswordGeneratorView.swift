@@ -3200,7 +3200,7 @@ private struct NativePasswordRow: View {
                 }
             }
 
-            VStack(spacing: 4) {
+            VStack(spacing: 6) {
                 Button {
                     onCopy()
                     hasCopied = true
@@ -3217,11 +3217,15 @@ private struct NativePasswordRow: View {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "doc.on.doc")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(palette.accentStrong)
+                            .foregroundStyle(showCopyFeedback ? palette.surface : palette.accentStrong)
                             .frame(width: 34, height: 34)
                             .background(
                                 Circle()
-                                    .fill(palette.accentSoft)
+                                    .fill(showCopyFeedback ? palette.accentStrong : palette.accentSoft)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(showCopyFeedback ? palette.accentStrong.opacity(0.45) : Color.clear, lineWidth: 4)
                             )
 
                         if hasCopied {
@@ -3237,12 +3241,11 @@ private struct NativePasswordRow: View {
                         }
                     }
                     .frame(width: 38, height: 38)
+                    .scaleEffect(showCopyFeedback ? 1.08 : 1)
                 }
                 .buttonStyle(.plain)
-
-                copyFeedbackBadge
             }
-            .frame(width: 88)
+            .frame(width: 48)
         }
         .padding(12)
         .background(
@@ -3257,29 +3260,6 @@ private struct NativePasswordRow: View {
         .onDisappear {
             copyFeedbackTask?.cancel()
         }
-    }
-
-    private var copyFeedbackBadge: some View {
-        ZStack {
-            Text("コピーしました")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(palette.accentStrong)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(palette.accentSoft)
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(palette.accent.opacity(0.35), lineWidth: 1)
-                )
-                .opacity(showCopyFeedback ? 1 : 0)
-                .scaleEffect(showCopyFeedback ? 1 : 0.96)
-        }
-        .frame(width: 88, height: 24)
     }
 
     private var compactStrengthSummary: some View {
