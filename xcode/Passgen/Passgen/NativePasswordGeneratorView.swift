@@ -3185,7 +3185,7 @@ private struct NativePasswordRow: View {
     @State private var copyFeedbackTask: Task<Void, Never>?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 NativePasswordPreviewLabel(text: password.displayValue, textColor: NSColor(palette.ink))
                     .frame(maxWidth: .infinity, alignment: .leading)
