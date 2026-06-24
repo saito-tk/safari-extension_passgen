@@ -3251,7 +3251,7 @@ private struct NativePasswordRow: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(palette.panelBorder, lineWidth: 1)
         )
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: .trailing) {
             if showCopyFeedback {
                 Text("コピーしました")
                     .font(.system(size: 11, weight: .semibold))
@@ -3266,8 +3266,7 @@ private struct NativePasswordRow: View {
                         Capsule()
                             .stroke(palette.accent.opacity(0.35), lineWidth: 1)
                     )
-                    .padding(.top, 8)
-                    .padding(.trailing, 54)
+                    .padding(.trailing, 58)
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
