@@ -3181,6 +3181,8 @@ private struct NativePasswordRow: View {
     let palette: NativeThemePalette
     let onCopy: () -> Void
     @State private var hasCopied = false
+    @State private var showCopyFeedback = false
+    @State private var copyFeedbackTask: Task<Void, Never>?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -3202,6 +3204,15 @@ private struct NativePasswordRow: View {
                 Button {
                     onCopy()
                     hasCopied = true
+                    showCopyFeedback = true
+                    copyFeedbackTask?.cancel()
+                    copyFeedbackTask = Task {
+                        try? await Task.sleep(nanoseconds: 1_400_000_000)
+                        guard !Task.isCancelled else { return }
+                        await MainActor.run {
+                            showCopyFeedback = false
+                        }
+                    }
                 } label: {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "doc.on.doc")
@@ -3240,6 +3251,30 @@ private struct NativePasswordRow: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(palette.panelBorder, lineWidth: 1)
         )
+        .overlay(alignment: .topTrailing) {
+            if showCopyFeedback {
+                Text("コピーしました")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(palette.accentStrong)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(palette.accentSoft)
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(palette.accent.opacity(0.35), lineWidth: 1)
+                    )
+                    .padding(.top, 8)
+                    .padding(.trailing, 54)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: showCopyFeedback)
+        .onDisappear {
+            copyFeedbackTask?.cancel()
+        }
     }
 
     private var compactStrengthSummary: some View {
