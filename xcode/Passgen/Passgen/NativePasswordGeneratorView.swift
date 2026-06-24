@@ -7,6 +7,7 @@
 
 import AppKit
 import Combine
+import CryptoKit
 import Security
 import SwiftUI
 import UniformTypeIdentifiers
@@ -993,7 +994,7 @@ struct NativePasswordGeneratorView: View {
                 }
 
                 if let resultMetadata = viewModel.resultMetadata {
-                    resultMetadataSummary(resultMetadata, generationShortID: viewModel.generationShortIDText, palette: palette)
+                    resultMetadataSummary(resultMetadata, generationHash: viewModel.generationHashText, palette: palette)
                 }
 
                 ScrollView {
@@ -1013,16 +1014,16 @@ struct NativePasswordGeneratorView: View {
         .nativeCardStyle(palette: palette)
     }
 
-    private func resultMetadataSummary(_ metadata: NativePasswordResultMetadata, generationShortID: String?, palette: NativeThemePalette) -> some View {
+    private func resultMetadataSummary(_ metadata: NativePasswordResultMetadata, generationHash: String?, palette: NativeThemePalette) -> some View {
         HStack(spacing: 6) {
             resultMetadataChip("推定エントロピー: \(formatNumber(metadata.entropy)) bits", palette: palette)
                 .help("固定文字を除いた生成条件全体で共通の推定エントロピー")
             resultMetadataChip(metadata.conditionSummary, palette: palette)
                 .help("生成に使える文字セット数と文字カテゴリ数")
             Spacer(minLength: 0)
-            if let generationShortID {
-                resultMetadataChip("生成ID: \(generationShortID)", palette: palette)
-                    .help("この生成結果セットを識別する短縮ID。テキスト出力ファイル名にも使われます。")
+            if let generationHash {
+                resultMetadataChip("ハッシュ: \(generationHash)", palette: palette)
+                    .help("この生成結果セットを識別する短縮ハッシュ。テキスト出力ファイル名にも使われます。")
             }
         }
     }
@@ -1534,12 +1535,12 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
     }
 
-    var generationShortIDText: String? {
+    var generationHashText: String? {
         guard !results.isEmpty, let currentGenerationSession else {
             return nil
         }
 
-        return currentGenerationSession.shortID
+        return currentGenerationSession.shortHash
     }
 
     var sortedPresets: [NativePasswordPreset] {
@@ -2038,7 +2039,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     private func defaultTextExportFilename() -> String {
         let session = currentGenerationSession ?? NativeGenerationSession()
-        return "passgen-\(Self.formatGenerationTimestamp(session.createdAt))-\(session.shortID).txt"
+        return "passgen-\(Self.formatGenerationTimestamp(session.createdAt))-\(session.shortHash).txt"
     }
 
     private func validateSettings() -> String? {
@@ -3057,8 +3058,9 @@ private struct NativeGenerationSession {
         self.createdAt = createdAt
     }
 
-    var shortID: String {
-        String(id.uuidString.replacingOccurrences(of: "-", with: "").prefix(12)).lowercased()
+    var shortHash: String {
+        let digest = SHA256.hash(data: Data(id.uuidString.utf8))
+        return digest.prefix(6).map { String(format: "%02x", $0) }.joined()
     }
 }
 
