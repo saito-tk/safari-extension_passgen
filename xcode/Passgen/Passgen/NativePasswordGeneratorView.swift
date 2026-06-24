@@ -3242,6 +3242,8 @@ private struct NativePasswordRow: View {
                             Text("コピーしました")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(palette.accentStrong)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(
