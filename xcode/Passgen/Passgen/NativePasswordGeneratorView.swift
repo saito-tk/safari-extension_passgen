@@ -3180,7 +3180,7 @@ private struct NativePasswordRow: View {
     let password: NativeGeneratedPasswordListItem
     let palette: NativeThemePalette
     let onCopy: () -> Void
-    @State private var isCopied = false
+    @State private var hasCopied = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -3201,29 +3201,33 @@ private struct NativePasswordRow: View {
             VStack(spacing: 6) {
                 Button {
                     onCopy()
-                    isCopied = true
-
-                    Task {
-                        try? await Task.sleep(nanoseconds: 1_800_000_000)
-                        isCopied = false
-                    }
+                    hasCopied = true
                 } label: {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(palette.accentStrong)
-                        .frame(width: 34, height: 34)
-                        .background(
-                            Circle()
-                                .fill(palette.accentSoft)
-                        )
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(palette.accentStrong)
+                            .frame(width: 34, height: 34)
+                            .background(
+                                Circle()
+                                    .fill(palette.accentSoft)
+                            )
+
+                        if hasCopied {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(palette.accentStrong)
+                                .background(
+                                    Circle()
+                                        .fill(palette.surface)
+                                        .frame(width: 12, height: 12)
+                                )
+                                .offset(x: 2, y: -2)
+                        }
+                    }
+                    .frame(width: 38, height: 38)
                 }
                 .buttonStyle(.plain)
-
-                if isCopied {
-                    Text("Copied!")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(palette.accent)
-                }
             }
             .frame(width: 48)
         }
