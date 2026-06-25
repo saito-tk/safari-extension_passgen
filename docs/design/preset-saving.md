@@ -171,6 +171,14 @@
   - `version`: 整数 `1`
   - `exportedAt`: export 日時
   - `presets`: `NativePasswordPreset` の配列
+- アプリ内には export JSON の形式バージョンごとの読み込み処理を保持する。
+- import 時は `format` と `version` から JSON 形式を判定し、対応している形式だけ読み込む。
+- 現行 export 形式は `version = 1` とする。
+- 将来 JSON 形式を変更する場合は、現行形式の読み込み処理を残し、新しい version 用の読み込み処理を追加する。
+- 過去の JSON に軽微な差分がある場合は、取り込める範囲で現行形式へ正規化する。
+  - `format` が欠落していても `presets` 配列を持つ場合は、旧形式候補として扱う。
+  - `version` が欠落していても `presets` 配列を持つ場合は、旧 version 1 候補として扱う。
+  - 旧形式候補でも、プリセットや設定値の検証に失敗する場合は import しない。
 - import 時は JSON の外形、必須キー、型、値域、UUID 形式、日時、プリセット設定の配列長を検証する。
 - JSON 形式または値が不正な場合は 1 件も import せず、左カラム内のステータス文言で失敗を表示する。
 - 正しい export JSON は import できるよう、現在のプリセット復元と同じ設定補正を import 時にも適用する。
