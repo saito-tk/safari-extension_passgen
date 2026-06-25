@@ -1156,7 +1156,7 @@ struct NativePasswordGeneratorView: View {
                     rows: [
                         ("保存", "現在の文字数、件数、文字選択、生成ルールを名前付きのプリセットとして保存します。"),
                         ("更新", "プリセット選択中に内容や名前を変えた場合は、保存済みのプリセットを更新できます。"),
-                        ("ロック", "よく使うプリセットをロックすると、選択中でも生成設定を変更できなくなり、更新もできません。"),
+                        ("ロック", "よく使うプリセットをロックすると、選択中でも文字選択や生成ルールを変更できなくなり、更新もできません。文字数と件数は変更できます。"),
                         ("テーマ", "表示テーマはアプリ全体の見た目設定なので、プリセットには含まれません。")
                     ],
                     palette: palette
@@ -1327,13 +1327,13 @@ struct NativePasswordGeneratorView: View {
                 .textFieldStyle(.plain)
                 .focused($focusedField, equals: focus)
                 .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledText : palette.ink)
-                .disabled(viewModel.isPasswordSettingsEditingDisabled)
+                .foregroundStyle(viewModel.isNumericSettingsEditingDisabled ? palette.disabledText : palette.ink)
+                .disabled(viewModel.isNumericSettingsEditingDisabled)
         }
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledBackground : palette.surface)
+                .fill(viewModel.isNumericSettingsEditingDisabled ? palette.disabledBackground : palette.surface)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -1511,6 +1511,14 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     var isPasswordSettingsEditingDisabled: Bool {
         !canEditPasswordSettings
+    }
+
+    var canEditNumericSettings: Bool {
+        !isGenerating
+    }
+
+    var isNumericSettingsEditingDisabled: Bool {
+        !canEditNumericSettings
     }
 
     var isSelectedPresetLocked: Bool {
@@ -1825,7 +1833,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             return
         }
 
-        guard canEditPasswordSettings else {
+        guard !isGenerating else {
             lengthText = String(settings.length)
             countText = String(settings.count)
             return
@@ -2245,7 +2253,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     private func normalizeNumericInputs(source: NativeFocusedField?) {
-        guard canEditPasswordSettings else {
+        guard !isGenerating else {
             lengthText = String(settings.length)
             countText = String(settings.count)
             return
