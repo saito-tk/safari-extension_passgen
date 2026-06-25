@@ -69,6 +69,7 @@ struct NativePasswordGeneratorView: View {
     @State private var isCharacterEditorHelpPresented = false
     @State private var isRulesHelpPresented = false
     @State private var isStrengthHelpPresented = false
+    @State private var isPresetExportSheetPresented = false
 
     init(viewModel: NativePasswordGeneratorViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -131,6 +132,13 @@ struct NativePasswordGeneratorView: View {
             }
         } message: { preset in
             Text("「\(preset.name)」を削除します。この操作は元に戻せません。")
+        }
+        .sheet(isPresented: $isPresetExportSheetPresented) {
+            NativePresetExportSelectionSheet(
+                viewModel: viewModel,
+                palette: palette,
+                isPresented: $isPresetExportSheetPresented
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: .nativeDisplayThemeDidChange)) { notification in
             guard let theme = notification.object as? NativeTheme else {
@@ -293,6 +301,31 @@ struct NativePasswordGeneratorView: View {
                     .buttonStyle(.plain)
                     .disabled(viewModel.isGenerating)
                     .help(viewModel.presetSortDirection.title)
+
+                    Menu {
+                        Button("エクスポート...") {
+                            viewModel.preparePresetExportSelection()
+                            isPresetExportSheetPresented = true
+                        }
+                        .disabled(!viewModel.canStartPresetExport)
+
+                        Button("インポート...") {
+                            viewModel.importPresetsFromJSON()
+                        }
+                        .disabled(!viewModel.canImportPresets)
+                    } label: {
+                        Image(systemName: "tray.and.arrow.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.accentStrong)
+                            .frame(width: 26, height: 26)
+                            .background(
+                                Circle()
+                                    .fill(viewModel.isGenerating ? palette.disabledBackground : palette.accentSoft)
+                            )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .disabled(viewModel.isGenerating)
+                    .help("プリセットのインポート/エクスポート")
                 }
 
                 if viewModel.presets.isEmpty {
@@ -1394,6 +1427,125 @@ struct NativePasswordGeneratorView: View {
 
 }
 
+private struct NativePresetExportSelectionSheet: View {
+    @ObservedObject var viewModel: NativePasswordGeneratorViewModel
+    let palette: NativeThemePalette
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 10) {
+                Text("エクスポートするプリセット")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(palette.ink)
+
+                Spacer(minLength: 0)
+
+                Text("\(viewModel.selectedPresetExportCount)件選択中")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(viewModel.sortedPresets) { preset in
+                        Button {
+                            viewModel.togglePresetExportSelection(id: preset.id)
+                        } label: {
+                            HStack(alignment: .center, spacing: 10) {
+                                Image(systemName: viewModel.isPresetSelectedForExport(id: preset.id) ? "checkmark.square.fill" : "square")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(viewModel.isPresetSelectedForExport(id: preset.id) ? palette.accentStrong : palette.muted)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                        Text(preset.name)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(palette.ink)
+                                            .lineLimit(2)
+
+                                        if preset.isLocked {
+                                            Image(systemName: "lock.fill")
+                                                .font(.system(size: 10, weight: .semibold))
+                                                .foregroundStyle(palette.accentStrong)
+                                        }
+                                    }
+
+                                    Text(viewModel.presetConditionSummary(for: preset))
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(palette.muted)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                Spacer(minLength: 0)
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(palette.surface)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(viewModel.isPresetSelectedForExport(id: preset.id) ? palette.accent.opacity(0.55) : palette.panelBorder, lineWidth: 1)
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .frame(minHeight: 260)
+
+            HStack(spacing: 10) {
+                Button("すべて選択") {
+                    viewModel.selectAllPresetsForExport()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(palette.accentStrong)
+
+                Button("すべて解除") {
+                    viewModel.clearPresetExportSelection()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(palette.muted)
+
+                Spacer(minLength: 0)
+
+                Button("キャンセル") {
+                    isPresented = false
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(palette.muted)
+
+                Button {
+                    if viewModel.exportSelectedPresetsAsJSON() {
+                        isPresented = false
+                    }
+                } label: {
+                    Text("エクスポート")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(viewModel.canExportSelectedPresets ? Color.white : palette.disabledText)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(viewModel.canExportSelectedPresets ? palette.accent : palette.disabledBackground)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!viewModel.canExportSelectedPresets)
+            }
+        }
+        .padding(18)
+        .frame(width: 460, height: 520)
+        .background(palette.surfaceSoft)
+    }
+}
+
 private struct NativeSwiftLayoutMetrics {
     let outerPadding: CGFloat = 18
     let columnSpacing: CGFloat = 16
@@ -1463,6 +1615,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var selectedPresetID: String?
     @Published var presetSortKey: NativePresetSortKey = .name
     @Published var presetSortDirection: NativePresetSortDirection = .ascending
+    @Published var presetExportSelectionIDs: Set<String> = []
 
     private var generationTask: Task<Void, Never>?
     private var isRestoringSettings = true
@@ -1574,6 +1727,22 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         !results.isEmpty && !isGenerating
     }
 
+    var canImportPresets: Bool {
+        !isGenerating
+    }
+
+    var canStartPresetExport: Bool {
+        !isGenerating && !presets.isEmpty
+    }
+
+    var canExportSelectedPresets: Bool {
+        !isGenerating && !presetExportSelectionIDs.isEmpty
+    }
+
+    var selectedPresetExportCount: Int {
+        presetExportSelectionIDs.count
+    }
+
     var hasTruncatedResults: Bool {
         results.contains { $0.isTruncated }
     }
@@ -1637,6 +1806,30 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     func togglePresetSortDirection() {
         presetSortDirection = presetSortDirection == .ascending ? .descending : .ascending
+    }
+
+    func preparePresetExportSelection() {
+        presetExportSelectionIDs = Set(sortedPresets.map(\.id))
+    }
+
+    func togglePresetExportSelection(id: String) {
+        if presetExportSelectionIDs.contains(id) {
+            presetExportSelectionIDs.remove(id)
+        } else {
+            presetExportSelectionIDs.insert(id)
+        }
+    }
+
+    func isPresetSelectedForExport(id: String) -> Bool {
+        presetExportSelectionIDs.contains(id)
+    }
+
+    func selectAllPresetsForExport() {
+        presetExportSelectionIDs = Set(presets.map(\.id))
+    }
+
+    func clearPresetExportSelection() {
+        presetExportSelectionIDs = []
     }
 
     func savePreset() {
@@ -2186,9 +2379,141 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
     }
 
+    func exportSelectedPresetsAsJSON() -> Bool {
+        guard canExportSelectedPresets else {
+            presetStatus = NativeInlineStatus(message: "エクスポートするプリセットを選択してください。", tone: .warning)
+            return false
+        }
+
+        let selectedPresets = sortedPresets.filter { presetExportSelectionIDs.contains($0.id) }
+        guard !selectedPresets.isEmpty else {
+            presetStatus = NativeInlineStatus(message: "エクスポートするプリセットを選択してください。", tone: .warning)
+            return false
+        }
+
+        let document = NativePresetExportDocument(exportedAt: Date(), presets: selectedPresets)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        let data: Data
+        do {
+            data = try encoder.encode(document)
+        } catch {
+            presetStatus = NativeInlineStatus(message: "プリセットのJSON作成に失敗しました。", tone: .error)
+            return false
+        }
+
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.json]
+        savePanel.canCreateDirectories = true
+        savePanel.isExtensionHidden = false
+        savePanel.nameFieldStringValue = defaultPresetExportFilename()
+        savePanel.title = "プリセットを書き出す"
+        savePanel.message = "選択したプリセットをJSONファイルとして保存します。"
+
+        let response = savePanel.runModal()
+        guard response == .OK, let url = savePanel.url else {
+            return false
+        }
+
+        do {
+            try data.write(to: url, options: .atomic)
+            presetStatus = NativeInlineStatus(message: "\(selectedPresets.count)件のプリセットをエクスポートしました。")
+            return true
+        } catch {
+            presetStatus = NativeInlineStatus(message: "プリセットのエクスポートに失敗しました。保存先を確認してください。", tone: .error)
+            return false
+        }
+    }
+
+    func importPresetsFromJSON() {
+        guard canImportPresets else {
+            return
+        }
+
+        let openPanel = NSOpenPanel()
+        openPanel.allowedContentTypes = [.json]
+        openPanel.allowsMultipleSelection = false
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        openPanel.title = "プリセットを読み込む"
+        openPanel.message = "PassgenのプリセットJSONファイルを選択してください。"
+
+        let response = openPanel.runModal()
+        guard response == .OK, let url = openPanel.url else {
+            return
+        }
+
+        let importedPresets: [NativePasswordPreset]
+        do {
+            let data = try Data(contentsOf: url)
+            importedPresets = try Self.decodePresetExportDocument(from: data)
+        } catch let error as NativePresetImportError {
+            presetStatus = NativeInlineStatus(message: error.message, tone: .error)
+            return
+        } catch {
+            presetStatus = NativeInlineStatus(message: "プリセットJSONを読み込めませんでした。ファイルを確認してください。", tone: .error)
+            return
+        }
+
+        let existingIDs = Set(presets.map(\.id))
+        let duplicatedPresets = importedPresets.filter { existingIDs.contains($0.id) }
+
+        if !duplicatedPresets.isEmpty {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "すでに取り込み済みのプリセットがあります。"
+            alert.informativeText = "同じUUIDのプリセットが\(duplicatedPresets.count)件あります。別名でインポートすると、UUIDを再発行して追加します。"
+            alert.addButton(withTitle: "別名でインポート")
+            alert.addButton(withTitle: "キャンセル")
+
+            guard alert.runModal() == .alertFirstButtonReturn else {
+                presetStatus = NativeInlineStatus(message: "プリセットのインポートをキャンセルしました。")
+                return
+            }
+        }
+
+        var knownIDs = existingIDs
+        var knownNames = Set(presets.map(\.name))
+        let preparedPresets = importedPresets.map { importedPreset in
+            let normalizedPreset = Self.normalizedImportedPreset(importedPreset)
+
+            if knownIDs.contains(normalizedPreset.id) {
+                let renamedPreset = NativePasswordPreset(
+                    id: UUID().uuidString,
+                    name: Self.uniqueImportedPresetName(baseName: normalizedPreset.name, existingNames: &knownNames),
+                    createdAt: normalizedPreset.createdAt,
+                    updatedAt: Date(),
+                    isLocked: normalizedPreset.isLocked,
+                    settings: normalizedPreset.settings
+                )
+                knownIDs.insert(renamedPreset.id)
+                return renamedPreset
+            }
+
+            knownIDs.insert(normalizedPreset.id)
+            knownNames.insert(normalizedPreset.name)
+            return normalizedPreset
+        }
+
+        guard !preparedPresets.isEmpty else {
+            presetStatus = NativeInlineStatus(message: "インポートできるプリセットがありません。", tone: .warning)
+            return
+        }
+
+        presets.insert(contentsOf: preparedPresets, at: 0)
+        persistPresets()
+        presetStatus = NativeInlineStatus(message: "\(preparedPresets.count)件のプリセットをインポートしました。")
+    }
+
     private func defaultTextExportFilename() -> String {
         let session = currentGenerationSession ?? NativeGenerationSession()
         return "passgen-\(Self.formatGenerationTimestamp(session.createdAt))-\(session.shortHash).txt"
+    }
+
+    private func defaultPresetExportFilename() -> String {
+        "passgen-presets-\(Self.formatGenerationTimestamp(Date())).json"
     }
 
     private func validateSettings() -> String? {
@@ -2362,6 +2687,228 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
 
         return restoredPresets
+    }
+
+    private static func decodePresetExportDocument(from data: Data) throws -> [NativePasswordPreset] {
+        let object = try JSONSerialization.jsonObject(with: data)
+        try validatePresetExportObject(object)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let document = try decoder.decode(NativePresetExportDocument.self, from: data)
+
+        guard document.format == NativePresetExportDocument.formatIdentifier else {
+            throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
+        }
+
+        guard document.version == NativePresetExportDocument.currentVersion else {
+            throw NativePresetImportError(message: "対応していないプリセットJSONのバージョンです。")
+        }
+
+        guard !document.presets.isEmpty else {
+            throw NativePresetImportError(message: "インポートできるプリセットがありません。")
+        }
+
+        var importedIDs = Set<String>()
+        return try document.presets.map { preset in
+            guard UUID(uuidString: preset.id) != nil else {
+                throw NativePresetImportError(message: "プリセットJSONに不正なUUIDが含まれています。")
+            }
+
+            guard importedIDs.insert(preset.id).inserted else {
+                throw NativePresetImportError(message: "プリセットJSON内に重複したUUIDがあります。")
+            }
+
+            let sanitizedName = sanitizePresetName(preset.name)
+            guard !sanitizedName.isEmpty, sanitizedName == preset.name else {
+                throw NativePresetImportError(message: "プリセットJSONに不正なプリセット名が含まれています。")
+            }
+
+            try validatePresetSettings(preset.settings)
+            return normalizedImportedPreset(preset)
+        }
+    }
+
+    private static func validatePresetExportObject(_ object: Any) throws {
+        guard let root = object as? [String: Any] else {
+            throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
+        }
+
+        let rootKeys = Set(root.keys)
+        guard rootKeys == ["format", "version", "exportedAt", "presets"] else {
+            throw NativePresetImportError(message: "プリセットJSONの項目が正しくありません。")
+        }
+
+        guard root["format"] as? String == NativePresetExportDocument.formatIdentifier,
+              integerValue(root["version"]) == NativePresetExportDocument.currentVersion,
+              let exportedAt = root["exportedAt"] as? String,
+              ISO8601DateFormatter().date(from: exportedAt) != nil,
+              let presetObjects = root["presets"] as? [[String: Any]],
+              !presetObjects.isEmpty else {
+            throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
+        }
+
+        try presetObjects.forEach(validatePresetObject)
+    }
+
+    private static func validatePresetObject(_ object: [String: Any]) throws {
+        let presetKeys = Set(object.keys)
+        guard presetKeys == ["id", "name", "createdAt", "updatedAt", "isLocked", "settings"] else {
+            throw NativePresetImportError(message: "プリセットJSONのプリセット項目が正しくありません。")
+        }
+
+        guard let id = object["id"] as? String,
+              UUID(uuidString: id) != nil,
+              let name = object["name"] as? String,
+              !sanitizePresetName(name).isEmpty,
+              sanitizePresetName(name) == name,
+              let createdAt = object["createdAt"] as? String,
+              ISO8601DateFormatter().date(from: createdAt) != nil,
+              let updatedAt = object["updatedAt"] as? String,
+              ISO8601DateFormatter().date(from: updatedAt) != nil,
+              object["isLocked"] is Bool,
+              let settingsObject = object["settings"] as? [String: Any] else {
+            throw NativePresetImportError(message: "プリセットJSONのプリセット値が正しくありません。")
+        }
+
+        try validatePresetSettingsObject(settingsObject)
+    }
+
+    private static func validatePresetSettingsObject(_ object: [String: Any]) throws {
+        let allowedKeys: Set<String> = [
+            "uppercase", "lowercase", "digits", "includeSymbols",
+            "uppercaseSelections", "lowercaseSelections", "digitSelections", "selectAllSymbols", "symbols",
+            "length", "count", "minimumUppercase", "minimumLowercase", "minimumDigits", "minimumSymbols",
+            "generationMode", "excludeSimilar", "requireEachSelectedType",
+            "allowUppercaseFirst", "allowLowercaseFirst", "allowDigitsFirst", "allowSymbolsFirst",
+            "firstCharacterMode", "fixedPrefix", "maxConsecutiveRun", "excludedCharacters"
+        ]
+        let requiredKeys: Set<String> = [
+            "uppercase", "lowercase", "digits", "includeSymbols",
+            "uppercaseSelections", "lowercaseSelections", "digitSelections", "selectAllSymbols", "symbols",
+            "length", "count", "minimumUppercase", "minimumLowercase", "minimumDigits", "minimumSymbols",
+            "generationMode", "excludeSimilar", "requireEachSelectedType",
+            "firstCharacterMode", "maxConsecutiveRun", "excludedCharacters"
+        ]
+        let keys = Set(object.keys)
+
+        guard keys.isSubset(of: allowedKeys), requiredKeys.isSubset(of: keys) else {
+            throw NativePresetImportError(message: "プリセットJSONの設定項目が正しくありません。")
+        }
+
+        guard object["uppercase"] is Bool,
+              object["lowercase"] is Bool,
+              object["digits"] is Bool,
+              object["includeSymbols"] is Bool,
+              object["selectAllSymbols"] is Bool,
+              object["excludeSimilar"] is Bool,
+              object["requireEachSelectedType"] is Bool,
+              isBooleanArray(object["uppercaseSelections"], count: uppercaseCharacters.count),
+              isBooleanArray(object["lowercaseSelections"], count: lowercaseCharacters.count),
+              isBooleanArray(object["digitSelections"], count: digitCharacters.count),
+              isBooleanArray(object["symbols"], count: nativeSymbolOptions.count),
+              let length = integerValue(object["length"]),
+              let count = integerValue(object["count"]),
+              let minimumUppercase = integerValue(object["minimumUppercase"]),
+              let minimumLowercase = integerValue(object["minimumLowercase"]),
+              let minimumDigits = integerValue(object["minimumDigits"]),
+              let minimumSymbols = integerValue(object["minimumSymbols"]),
+              let maxConsecutiveRun = integerValue(object["maxConsecutiveRun"]),
+              let generationMode = object["generationMode"] as? String,
+              NativeGenerationMode(rawValue: generationMode) != nil,
+              let firstCharacterMode = object["firstCharacterMode"] as? String,
+              let decodedFirstCharacterMode = NativeFirstCharacterMode(rawValue: firstCharacterMode),
+              object["excludedCharacters"] is String else {
+            throw NativePresetImportError(message: "プリセットJSONの設定値が正しくありません。")
+        }
+
+        guard length >= nativeMinPasswordLength,
+              length <= nativeMaxPasswordLength,
+              count >= nativeMinPasswordCount,
+              count <= getMaxCountForLength(length),
+              minimumUppercase >= 0,
+              minimumLowercase >= 0,
+              minimumDigits >= 0,
+              minimumSymbols >= 0,
+              maxConsecutiveRun >= 0,
+              maxConsecutiveRun <= nativeMaxConsecutiveRunLimit else {
+            throw NativePresetImportError(message: "プリセットJSONの設定値が範囲外です。")
+        }
+
+        switch decodedFirstCharacterMode {
+        case .characterSet:
+            guard object["allowUppercaseFirst"] is Bool,
+                  object["allowLowercaseFirst"] is Bool,
+                  object["allowDigitsFirst"] is Bool,
+                  object["allowSymbolsFirst"] is Bool,
+                  object["fixedPrefix"] == nil else {
+                throw NativePresetImportError(message: "プリセットJSONの先頭文字設定が正しくありません。")
+            }
+        case .fixedPrefix:
+            guard object["fixedPrefix"] is String,
+                  object["allowUppercaseFirst"] == nil,
+                  object["allowLowercaseFirst"] == nil,
+                  object["allowDigitsFirst"] == nil,
+                  object["allowSymbolsFirst"] == nil else {
+                throw NativePresetImportError(message: "プリセットJSONの先頭文字設定が正しくありません。")
+            }
+        }
+    }
+
+    private static func validatePresetSettings(_ settings: NativePasswordPresetSettings) throws {
+        guard settings.uppercaseSelections.count == uppercaseCharacters.count,
+              settings.lowercaseSelections.count == lowercaseCharacters.count,
+              settings.digitSelections.count == digitCharacters.count,
+              settings.symbols.count == nativeSymbolOptions.count else {
+            throw NativePresetImportError(message: "プリセットJSONの文字選択数が正しくありません。")
+        }
+    }
+
+    private static func normalizedImportedPreset(_ preset: NativePasswordPreset) -> NativePasswordPreset {
+        let normalizedSettings = normalizedSettings(from: preset.settings.applying(to: .defaultSettings))
+        return NativePasswordPreset(
+            id: preset.id,
+            name: preset.name,
+            createdAt: preset.createdAt,
+            updatedAt: preset.updatedAt,
+            isLocked: preset.isLocked,
+            settings: NativePasswordPresetSettings(settings: normalizedSettings)
+        )
+    }
+
+    private static func uniqueImportedPresetName(baseName: String, existingNames: inout Set<String>) -> String {
+        let sanitizedBaseName = sanitizePresetName(baseName)
+        let fallbackBaseName = sanitizedBaseName.isEmpty ? "インポートしたプリセット" : sanitizedBaseName
+        var candidate = "\(fallbackBaseName) のコピー"
+        var index = 2
+
+        while existingNames.contains(candidate) {
+            candidate = "\(fallbackBaseName) のコピー \(index)"
+            index += 1
+        }
+
+        existingNames.insert(candidate)
+        return candidate
+    }
+
+    private static func isBooleanArray(_ value: Any?, count: Int) -> Bool {
+        guard let array = value as? [Any], array.count == count else {
+            return false
+        }
+
+        return array.allSatisfy { $0 is Bool }
+    }
+
+    private static func integerValue(_ value: Any?) -> Int? {
+        if let intValue = value as? Int {
+            return intValue
+        }
+
+        guard let numberValue = value as? NSNumber, CFGetTypeID(numberValue) != CFBooleanGetTypeID() else {
+            return nil
+        }
+
+        return numberValue.intValue
     }
 
     private static func normalizedSettings(from settings: NativePasswordSettings) -> NativePasswordSettings {
@@ -3070,6 +3617,27 @@ struct NativePasswordSettings: Codable {
         try container.encode(maxConsecutiveRun, forKey: .maxConsecutiveRun)
         try container.encode(excludedCharacters, forKey: .excludedCharacters)
         try container.encode(theme, forKey: .theme)
+    }
+}
+
+private struct NativePresetImportError: Error {
+    let message: String
+}
+
+private struct NativePresetExportDocument: Codable {
+    static let formatIdentifier = "passgen.presets"
+    static let currentVersion = 1
+
+    let format: String
+    let version: Int
+    let exportedAt: Date
+    let presets: [NativePasswordPreset]
+
+    init(exportedAt: Date, presets: [NativePasswordPreset]) {
+        format = Self.formatIdentifier
+        version = Self.currentVersion
+        self.exportedAt = exportedAt
+        self.presets = presets
     }
 }
 

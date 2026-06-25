@@ -8,16 +8,16 @@
 
 - [x] `docs/design/preset-saving.md` にプリセット import/export 仕様を追加する。
 - [x] `README.md` と tips 仕様に import/export の説明を追加する。
-- [ ] プリセット export 用の複数選択 UI を追加する。
-- [ ] 選択したプリセットを `.json` として保存する。
-- [ ] export JSON の外形を `format` / `version` / `exportedAt` / `presets` に固定する。
-- [ ] import 用の JSON 読み込みを追加する。
-- [ ] import JSON の外形、必須キー、UUID、日時、設定値を検証する。
-- [ ] 不正 JSON の場合は 1 件も import しない。
-- [ ] 重複 UUID がある場合は、別名 import するか確認する。
-- [ ] 別名 import 時は UUID を再発行し、名前を既存名と衝突しないものにする。
-- [ ] import 後にプリセット一覧を永続化する。
-- [ ] Xcode build で確認する。
+- [x] プリセット export 用の複数選択 UI を追加する。
+- [x] 選択したプリセットを `.json` として保存する。
+- [x] export JSON の外形を `format` / `version` / `exportedAt` / `presets` に固定する。
+- [x] import 用の JSON 読み込みを追加する。
+- [x] import JSON の外形、必須キー、UUID、日時、設定値を検証する。
+- [x] 不正 JSON の場合は 1 件も import しない。
+- [x] 重複 UUID がある場合は、別名 import するか確認する。
+- [x] 別名 import 時は UUID を再発行し、名前を既存名と衝突しないものにする。
+- [x] import 後にプリセット一覧を永続化する。
+- [x] Xcode build で確認する。
 
 ## 確認観点
 
