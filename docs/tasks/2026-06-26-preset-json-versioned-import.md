@@ -7,11 +7,11 @@
 ## タスク
 
 - [x] `docs/design/preset-saving.md` に JSON version ごとの import 方針を追加する。
-- [ ] import 処理を JSON version 判定と version 別 decoder に分離する。
-- [ ] 現行形式を `version = 1` として扱う。
-- [ ] `format` または `version` が欠落している旧JSON候補を version 1 として正規化する。
-- [ ] 旧JSON候補でもプリセット/設定値が不正な場合は import しない。
-- [ ] Xcode build で確認する。
+- [x] import 処理を JSON version 判定と version 別 decoder に分離する。
+- [x] 現行形式を `version = 1` として扱う。
+- [x] `format` または `version` が欠落している旧JSON候補を version 1 として正規化する。
+- [x] 旧JSON候補でもプリセット/設定値が不正な場合は import しない。
+- [x] Xcode build で確認する。
 
 ## 確認観点
 

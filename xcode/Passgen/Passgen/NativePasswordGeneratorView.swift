@@ -2691,20 +2691,42 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     private static func decodePresetExportDocument(from data: Data) throws -> [NativePasswordPreset] {
         let object = try JSONSerialization.jsonObject(with: data)
-        try validatePresetExportObject(object)
+        let version = try presetExportVersion(from: object)
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let document = try decoder.decode(NativePresetExportDocument.self, from: data)
 
-        guard document.format == NativePresetExportDocument.formatIdentifier else {
+        switch version {
+        case 1:
+            return try decodePresetExportV1(from: data, object: object, decoder: decoder)
+        default:
+            throw NativePresetImportError(message: "対応していないプリセットJSONのバージョンです。")
+        }
+    }
+
+    private static func presetExportVersion(from object: Any) throws -> Int {
+        guard let root = object as? [String: Any],
+              let presetObjects = root["presets"] as? [[String: Any]],
+              !presetObjects.isEmpty else {
             throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
         }
 
-        guard document.version == NativePresetExportDocument.currentVersion else {
-            throw NativePresetImportError(message: "対応していないプリセットJSONのバージョンです。")
+        if let format = root["format"] as? String,
+           format != NativePresetExportDocument.formatIdentifier {
+            throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
         }
 
+        if let version = integerValue(root["version"]) {
+            return version
+        }
+
+        return 1
+    }
+
+    private static func decodePresetExportV1(from data: Data, object: Any, decoder: JSONDecoder) throws -> [NativePasswordPreset] {
+        try validatePresetExportV1Object(object)
+
+        let document = try decoder.decode(NativePresetExportV1Document.self, from: data)
         guard !document.presets.isEmpty else {
             throw NativePresetImportError(message: "インポートできるプリセットがありません。")
         }
@@ -2729,21 +2751,34 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
     }
 
-    private static func validatePresetExportObject(_ object: Any) throws {
+    private static func validatePresetExportV1Object(_ object: Any) throws {
         guard let root = object as? [String: Any] else {
             throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
         }
 
         let rootKeys = Set(root.keys)
-        guard rootKeys == ["format", "version", "exportedAt", "presets"] else {
+        let allowedRootKeys: Set<String> = ["format", "version", "exportedAt", "presets"]
+        guard rootKeys.isSubset(of: allowedRootKeys),
+              rootKeys.contains("presets") else {
             throw NativePresetImportError(message: "プリセットJSONの項目が正しくありません。")
         }
 
-        guard root["format"] as? String == NativePresetExportDocument.formatIdentifier,
-              integerValue(root["version"]) == NativePresetExportDocument.currentVersion,
-              let exportedAt = root["exportedAt"] as? String,
-              ISO8601DateFormatter().date(from: exportedAt) != nil,
-              let presetObjects = root["presets"] as? [[String: Any]],
+        if let format = root["format"] as? String,
+           format != NativePresetExportDocument.formatIdentifier {
+            throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
+        }
+
+        if let version = integerValue(root["version"]),
+           version != 1 {
+            throw NativePresetImportError(message: "対応していないプリセットJSONのバージョンです。")
+        }
+
+        if let exportedAt = root["exportedAt"] as? String,
+           ISO8601DateFormatter().date(from: exportedAt) == nil {
+            throw NativePresetImportError(message: "プリセットJSONの日時が正しくありません。")
+        }
+
+        guard let presetObjects = root["presets"] as? [[String: Any]],
               !presetObjects.isEmpty else {
             throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
         }
@@ -3639,6 +3674,13 @@ private struct NativePresetExportDocument: Codable {
         self.exportedAt = exportedAt
         self.presets = presets
     }
+}
+
+private struct NativePresetExportV1Document: Decodable {
+    let format: String?
+    let version: Int?
+    let exportedAt: Date?
+    let presets: [NativePasswordPreset]
 }
 
 struct NativePasswordPreset: Codable, Identifiable {
