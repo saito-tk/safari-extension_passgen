@@ -377,7 +377,11 @@ struct NativePasswordGeneratorView: View {
                                 }
 
                                 Button("削除", role: .destructive) {
-                                    presetPendingDeletion = preset
+                                    if preset.isLocked {
+                                        viewModel.showLockedPresetDeletionMessage()
+                                    } else {
+                                        presetPendingDeletion = preset
+                                    }
                                 }
                             } label: {
                                 Image(systemName: "ellipsis.circle")
@@ -1156,7 +1160,7 @@ struct NativePasswordGeneratorView: View {
                     rows: [
                         ("保存", "現在の文字数、件数、文字選択、生成ルールを名前付きのプリセットとして保存します。"),
                         ("更新", "プリセット選択中に内容や名前を変えた場合は、保存済みのプリセットを更新できます。"),
-                        ("ロック", "よく使うプリセットをロックすると、選択中でも文字選択や生成ルールを変更できなくなり、更新もできません。文字数と件数は変更できます。"),
+                        ("ロック", "よく使うプリセットをロックすると、選択中でも文字選択や生成ルールを変更できなくなり、更新や削除もできません。文字数と件数は変更できます。"),
                         ("テーマ", "表示テーマはアプリ全体の見た目設定なので、プリセットには含まれません。")
                     ],
                     palette: palette
@@ -1176,7 +1180,7 @@ struct NativePasswordGeneratorView: View {
                     title: "削除",
                     rows: [
                         ("設定ボタン", "各プリセット行の設定ボタンからロック、ロック解除、削除を選べます。"),
-                        ("確認", "削除前に確認ダイアログを表示します。削除するとプリセット未選択の状態に戻ります。")
+                        ("確認", "削除前に確認ダイアログを表示します。ロック中は削除できず、確認ダイアログも表示しません。")
                     ],
                     palette: palette
                 )
@@ -1769,6 +1773,11 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             return
         }
 
+        guard !presets[deletedIndex].isLocked else {
+            showLockedPresetDeletionMessage()
+            return
+        }
+
         let deletedName = presets[deletedIndex].name
         presets.remove(at: deletedIndex)
         selectedPresetID = nil
@@ -1776,6 +1785,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         settingsBeforePresetSelection = nil
         persistPresets()
         presetStatus = NativeInlineStatus(message: "「\(deletedName)」を削除しました。")
+    }
+
+    func showLockedPresetDeletionMessage() {
+        presetStatus = NativeInlineStatus(message: "ロック中のため削除できません。", tone: .warning)
     }
 
     private func deselectPreset() {
