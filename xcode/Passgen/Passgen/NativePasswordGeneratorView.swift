@@ -224,7 +224,7 @@ struct NativePasswordGeneratorView: View {
                 Button {
                     viewModel.savePreset()
                 } label: {
-                    Text(viewModel.selectedPresetID == nil ? "保存" : "更新")
+                    Text(viewModel.presetSaveButtonTitle)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(viewModel.canSavePreset ? Color.white : palette.disabledText)
                         .frame(maxWidth: .infinity)
@@ -330,10 +330,19 @@ struct NativePasswordGeneratorView: View {
                                         .frame(width: 4)
 
                                     VStack(alignment: .leading, spacing: 6) {
-                                        Text(preset.name)
-                                            .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
-                                            .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
-                                            .lineLimit(2)
+                                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                            Text(preset.name)
+                                                .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
+                                                .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
+                                                .lineLimit(2)
+
+                                            if preset.isLocked {
+                                                Image(systemName: "lock.fill")
+                                                    .font(.system(size: 10, weight: .semibold))
+                                                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.accentStrong)
+                                                    .help("ロック中")
+                                            }
+                                        }
 
                                         Text(viewModel.presetConditionSummary(for: preset))
                                             .font(.system(size: 11))
@@ -361,6 +370,12 @@ struct NativePasswordGeneratorView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
                             Menu {
+                                Button {
+                                    viewModel.togglePresetLock(id: preset.id)
+                                } label: {
+                                    Label(preset.isLocked ? "ロック解除" : "ロック", systemImage: preset.isLocked ? "lock.open" : "lock")
+                                }
+
                                 Button("削除", role: .destructive) {
                                     presetPendingDeletion = preset
                                 }
@@ -575,10 +590,10 @@ struct NativePasswordGeneratorView: View {
 
     private func symbolButton(index: Int, symbol: NativeSymbolOption, palette: NativeThemePalette) -> some View {
         let isSelected = viewModel.settings.symbols[index]
-        let foregroundColor = isSelected ? Color.white : (viewModel.isGenerating ? palette.disabledText : palette.muted)
+        let foregroundColor = isSelected ? Color.white : (viewModel.isPasswordSettingsEditingDisabled ? palette.disabledText : palette.muted)
         let backgroundView: AnyShapeStyle = isSelected
             ? AnyShapeStyle(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .top, endPoint: .bottom))
-            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
+            : AnyShapeStyle(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledBackground : palette.surfaceStrong)
         let borderColor = isSelected ? palette.accentStrong.opacity(0.92) : palette.panelBorder
 
         return Button {
@@ -598,7 +613,7 @@ struct NativePasswordGeneratorView: View {
                 )
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.isGenerating)
+        .disabled(viewModel.isPasswordSettingsEditingDisabled)
         .help(symbol.description)
     }
 
@@ -611,14 +626,14 @@ struct NativePasswordGeneratorView: View {
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
+                        .fill(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledBackground : palette.surfaceStrong)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(palette.panelBorder, lineWidth: 1)
                 )
-                .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
-                .disabled(viewModel.isGenerating)
+                .foregroundStyle(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledText : palette.ink)
+                .disabled(viewModel.isPasswordSettingsEditingDisabled)
 
             Button("反映") {
                 viewModel.applyImportedSymbols()
@@ -686,8 +701,8 @@ struct NativePasswordGeneratorView: View {
             }
             .buttonStyle(.plain)
             .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.muted)
-            .disabled(viewModel.isGenerating)
+            .foregroundStyle(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledText : palette.muted)
+            .disabled(viewModel.isPasswordSettingsEditingDisabled)
         }
     }
 
@@ -698,10 +713,10 @@ struct NativePasswordGeneratorView: View {
         isSelected: Bool,
         palette: NativeThemePalette
     ) -> some View {
-        let foregroundColor = isSelected ? Color.white : (viewModel.isGenerating ? palette.disabledText : palette.muted)
+        let foregroundColor = isSelected ? Color.white : (viewModel.isPasswordSettingsEditingDisabled ? palette.disabledText : palette.muted)
         let backgroundView: AnyShapeStyle = isSelected
             ? AnyShapeStyle(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .top, endPoint: .bottom))
-            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
+            : AnyShapeStyle(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledBackground : palette.surfaceStrong)
         let borderColor = isSelected ? palette.accentStrong.opacity(0.92) : palette.panelBorder
 
         return Button {
@@ -721,7 +736,7 @@ struct NativePasswordGeneratorView: View {
                 )
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.isGenerating)
+        .disabled(viewModel.isPasswordSettingsEditingDisabled)
     }
 
     private func selectedCharactersRow(title: String, characters: String, selectedCharacters: Set<String>, excludedCharacters: Set<String>, palette: NativeThemePalette) -> some View {
@@ -796,18 +811,18 @@ struct NativePasswordGeneratorView: View {
                     .padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
+                            .fill(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledBackground : palette.surfaceStrong)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(palette.panelBorder, lineWidth: 1)
                     )
-                    .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
-                    .disabled(viewModel.isGenerating)
+                    .foregroundStyle(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledText : palette.ink)
+                    .disabled(viewModel.isPasswordSettingsEditingDisabled)
                 }
             }
             .opacity(viewModel.usesRulePriorityMode ? 1 : 0.56)
-            .disabled(!viewModel.usesRulePriorityMode || viewModel.isGenerating)
+            .disabled(!viewModel.usesRulePriorityMode || viewModel.isPasswordSettingsEditingDisabled)
         }
         .padding(16)
         .nativeCardStyle(palette: palette)
@@ -815,10 +830,10 @@ struct NativePasswordGeneratorView: View {
 
     private func firstCharacterChip(tab: NativeCharacterTab, title: String, palette: NativeThemePalette) -> some View {
         let isSelected = viewModel.isFirstCharacterAllowed(for: tab)
-        let foregroundColor = isSelected ? Color.white : (viewModel.isGenerating ? palette.disabledText : palette.muted)
+        let foregroundColor = isSelected ? Color.white : (viewModel.isPasswordSettingsEditingDisabled ? palette.disabledText : palette.muted)
         let backgroundView: AnyShapeStyle = isSelected
             ? AnyShapeStyle(LinearGradient(colors: [palette.accent, palette.accentStrong], startPoint: .top, endPoint: .bottom))
-            : AnyShapeStyle(viewModel.isGenerating ? palette.disabledBackground : palette.surfaceStrong)
+            : AnyShapeStyle(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledBackground : palette.surfaceStrong)
         let borderColor = isSelected ? palette.accentStrong.opacity(0.92) : palette.panelBorder
 
         return Button {
@@ -838,7 +853,7 @@ struct NativePasswordGeneratorView: View {
                 )
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.isGenerating)
+        .disabled(viewModel.isPasswordSettingsEditingDisabled)
     }
 
     private func firstCharacterModeBar(palette: NativeThemePalette) -> some View {
@@ -864,7 +879,7 @@ struct NativePasswordGeneratorView: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .disabled(viewModel.isGenerating)
+                .disabled(viewModel.isPasswordSettingsEditingDisabled)
             }
         }
     }
@@ -892,7 +907,7 @@ struct NativePasswordGeneratorView: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .disabled(viewModel.isGenerating)
+                .disabled(viewModel.isPasswordSettingsEditingDisabled)
             }
         }
     }
@@ -1141,6 +1156,7 @@ struct NativePasswordGeneratorView: View {
                     rows: [
                         ("保存", "現在の文字数、件数、文字選択、生成ルールを名前付きのプリセットとして保存します。"),
                         ("更新", "プリセット選択中に内容や名前を変えた場合は、保存済みのプリセットを更新できます。"),
+                        ("ロック", "よく使うプリセットをロックすると、選択中でも生成設定を変更できなくなり、更新もできません。"),
                         ("テーマ", "表示テーマはアプリ全体の見た目設定なので、プリセットには含まれません。")
                     ],
                     palette: palette
@@ -1159,7 +1175,7 @@ struct NativePasswordGeneratorView: View {
                 strengthHelpSection(
                     title: "削除",
                     rows: [
-                        ("設定ボタン", "各プリセット行の設定ボタンから削除を選べます。"),
+                        ("設定ボタン", "各プリセット行の設定ボタンからロック、ロック解除、削除を選べます。"),
                         ("確認", "削除前に確認ダイアログを表示します。削除するとプリセット未選択の状態に戻ります。")
                     ],
                     palette: palette
@@ -1311,13 +1327,13 @@ struct NativePasswordGeneratorView: View {
                 .textFieldStyle(.plain)
                 .focused($focusedField, equals: focus)
                 .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.ink)
-                .disabled(viewModel.isGenerating)
+                .foregroundStyle(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledText : palette.ink)
+                .disabled(viewModel.isPasswordSettingsEditingDisabled)
         }
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(viewModel.isGenerating ? palette.disabledBackground : palette.surface)
+                .fill(viewModel.isPasswordSettingsEditingDisabled ? palette.disabledBackground : palette.surface)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -1348,12 +1364,12 @@ struct NativePasswordGeneratorView: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 13, weight: selected ? .semibold : .regular))
-                .foregroundStyle(selected ? palette.accentStrong : (viewModel.isGenerating ? palette.disabledText : palette.ink))
+                .foregroundStyle(selected ? palette.accentStrong : (viewModel.isPasswordSettingsEditingDisabled ? palette.disabledText : palette.ink))
                 .frame(maxWidth: compact ? nil : .infinity, minHeight: 42, alignment: compact ? .center : .leading)
                 .padding(.horizontal, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(selected ? palette.accent.opacity(0.14) : (viewModel.isGenerating ? palette.disabledBackground : palette.surface))
+                        .fill(selected ? palette.accent.opacity(0.14) : (viewModel.isPasswordSettingsEditingDisabled ? palette.disabledBackground : palette.surface))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -1361,7 +1377,7 @@ struct NativePasswordGeneratorView: View {
                 )
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.isGenerating || !isEnabled)
+        .disabled(viewModel.isPasswordSettingsEditingDisabled || !isEnabled)
         .opacity(isEnabled ? 1 : 0.56)
         .frame(maxWidth: fullWidth ? .infinity : nil)
         .fixedSize(horizontal: compact, vertical: false)
@@ -1486,7 +1502,27 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     var canApplyImportedSymbols: Bool {
-        !symbolImportText.isEmpty && !isGenerating
+        !symbolImportText.isEmpty && canEditPasswordSettings
+    }
+
+    var canEditPasswordSettings: Bool {
+        !isGenerating && selectedPreset?.isLocked != true
+    }
+
+    var isPasswordSettingsEditingDisabled: Bool {
+        !canEditPasswordSettings
+    }
+
+    var isSelectedPresetLocked: Bool {
+        selectedPreset?.isLocked == true
+    }
+
+    var presetSaveButtonTitle: String {
+        if isSelectedPresetLocked {
+            return "ロック中"
+        }
+
+        return selectedPresetID == nil ? "保存" : "更新"
     }
 
     var canSavePreset: Bool {
@@ -1501,6 +1537,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
         guard let selectedPreset else {
             return true
+        }
+
+        guard !selectedPreset.isLocked else {
+            return false
         }
 
         return name != selectedPreset.name || NativePasswordPresetSettings(settings: settings) != selectedPreset.settings
@@ -1601,6 +1641,16 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         let now = Date()
         let snapshot = NativePasswordPresetSettings(settings: settings)
 
+        if let selectedPreset, selectedPreset.isLocked {
+            presetStatus = NativeInlineStatus(message: "ロック中のプリセットは更新できません。", tone: .warning)
+            return
+        }
+
+        if let lockedPreset = presets.first(where: { $0.name == name && $0.id != selectedPresetID && $0.isLocked }) {
+            presetStatus = NativeInlineStatus(message: "「\(lockedPreset.name)」はロック中のため上書きできません。", tone: .warning)
+            return
+        }
+
         if let selectedPresetID,
            let selectedIndex = presets.firstIndex(where: { $0.id == selectedPresetID }) {
             let selectedPreset = presets[selectedIndex]
@@ -1609,6 +1659,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                 name: name,
                 createdAt: selectedPreset.createdAt,
                 updatedAt: now,
+                isLocked: selectedPreset.isLocked,
                 settings: snapshot
             )
             presets[selectedIndex] = updatedPreset
@@ -1621,6 +1672,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                 name: name,
                 createdAt: existingPreset.createdAt,
                 updatedAt: now,
+                isLocked: existingPreset.isLocked,
                 settings: snapshot
             )
             presets[existingIndex] = updatedPreset
@@ -1633,6 +1685,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                 name: name,
                 createdAt: now,
                 updatedAt: now,
+                isLocked: false,
                 settings: snapshot
             )
             presets.insert(preset, at: 0)
@@ -1663,6 +1716,27 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         selectedPresetID = preset.id
         presetNameText = preset.name
         presetStatus = NativeInlineStatus(message: "プリセットを反映しました。")
+    }
+
+    func togglePresetLock(id: String) {
+        guard !isGenerating, let presetIndex = presets.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        presets[presetIndex].isLocked.toggle()
+        presets[presetIndex].updatedAt = Date()
+
+        let preset = presets[presetIndex]
+        if selectedPresetID == preset.id {
+            presetNameText = preset.name
+
+            if preset.isLocked {
+                applySettings(preset.settings.applying(to: settings))
+            }
+        }
+
+        persistPresets()
+        presetStatus = NativeInlineStatus(message: preset.isLocked ? "「\(preset.name)」をロックしました。" : "「\(preset.name)」のロックを解除しました。")
     }
 
     func presetMetadataText(for preset: NativePasswordPreset) -> String? {
@@ -1751,6 +1825,12 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             return
         }
 
+        guard canEditPasswordSettings else {
+            lengthText = String(settings.length)
+            countText = String(settings.count)
+            return
+        }
+
         switch previousField {
         case .length:
             normalizeNumericInputs(source: .length)
@@ -1775,6 +1855,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func toggleFirstCharacterAllowed(for tab: NativeCharacterTab) {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         switch tab {
         case .uppercase:
             settings.allowUppercaseFirst.toggle()
@@ -1790,21 +1874,37 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func selectFirstCharacterMode(_ mode: NativeFirstCharacterMode) {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         settings.firstCharacterMode = mode
         persistSettings()
     }
 
     func selectGenerationMode(_ mode: NativeGenerationMode) {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         settings.generationMode = mode
         persistSettings()
     }
 
     func toggleExcludeSimilar() {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         settings.excludeSimilar.toggle()
         persistSettings()
     }
 
     func toggleRequireEachSelectedType() {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         settings.requireEachSelectedType.toggle()
         persistSettings()
     }
@@ -1814,11 +1914,19 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func toggleDisallowConsecutiveDuplicates() {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         settings.maxConsecutiveRun = settings.maxConsecutiveRun == 1 ? 0 : 1
         persistSettings()
     }
 
     func updateFixedPrefix(_ value: String) {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         settings.fixedPrefix = Self.sanitizeSingleLineText(value)
         persistSettings()
     }
@@ -1833,6 +1941,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func setAllCharacters(in tab: NativeCharacterTab, selected: Bool) {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         switch tab {
         case .uppercase:
             settings.uppercaseSelections = Array(repeating: selected, count: uppercaseCharacters.count)
@@ -1850,6 +1962,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func toggleCharacter(in tab: NativeCharacterTab, at index: Int) {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         switch tab {
         case .uppercase:
             guard settings.uppercaseSelections.indices.contains(index) else { return }
@@ -1870,6 +1986,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func toggleSymbol(at index: Int) {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         guard settings.symbols.indices.contains(index) else {
             return
         }
@@ -1881,6 +2001,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func setAllSymbols(selected: Bool) {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         settings.symbols = Array(repeating: selected, count: nativeSymbolOptions.count)
         syncSelectAllState()
         syncCategorySelectionFlags()
@@ -1888,6 +2012,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func applyImportedSymbols() {
+        guard canEditPasswordSettings else {
+            return
+        }
+
         let importedValue = symbolImportText
         guard !importedValue.isEmpty else {
             return
@@ -2117,6 +2245,12 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     private func normalizeNumericInputs(source: NativeFocusedField?) {
+        guard canEditPasswordSettings else {
+            lengthText = String(settings.length)
+            countText = String(settings.count)
+            return
+        }
+
         let rawLength = Self.sanitizeNumber(lengthText, fallback: settings.length)
         let normalizedLength = Self.clampNumber(rawLength, minimum: nativeMinPasswordLength, maximum: nativeMaxPasswordLength)
         let maxCountForLength = Self.getMaxCountForLength(normalizedLength)
@@ -2923,7 +3057,43 @@ struct NativePasswordPreset: Codable, Identifiable {
     var name: String
     let createdAt: Date
     var updatedAt: Date
+    var isLocked: Bool
     var settings: NativePasswordPresetSettings
+
+    init(
+        id: String,
+        name: String,
+        createdAt: Date,
+        updatedAt: Date,
+        isLocked: Bool = false,
+        settings: NativePasswordPresetSettings
+    ) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.isLocked = isLocked
+        self.settings = settings
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case createdAt
+        case updatedAt
+        case isLocked
+        case settings
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        isLocked = try container.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
+        settings = try container.decode(NativePasswordPresetSettings.self, forKey: .settings)
+    }
 }
 
 struct NativePasswordPresetSettings: Codable, Equatable {
