@@ -55,9 +55,9 @@ private let nativeMaxPasswordCount = 1000
 private let nativeMaxGeneratedCharacters = nativeMaxPasswordLength * 10
 private let nativePasswordYieldInterval = 2_048
 private let nativeMaxConsecutiveRunLimit = 99
-private let uppercaseCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-private let lowercaseCharacters = "abcdefghijklmnopqrstuvwxyz"
-private let digitCharacters = "0123456789"
+nonisolated private let uppercaseCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+nonisolated private let lowercaseCharacters = "abcdefghijklmnopqrstuvwxyz"
+nonisolated private let digitCharacters = "0123456789"
 
 struct NativePasswordGeneratorView: View {
     @StateObject var viewModel: NativePasswordGeneratorViewModel
@@ -1052,7 +1052,14 @@ struct NativePasswordGeneratorView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
                         ForEach(viewModel.results) { password in
-                            NativePasswordRow(password: password, palette: palette) {
+                            NativePasswordRow(
+                                password: password,
+                                isCopied: viewModel.copiedPasswordIDs.contains(password.id),
+                                characterCompositionHelpTextProvider: {
+                                    viewModel.characterCompositionHelpText(for: password.id)
+                                },
+                                palette: palette
+                            ) {
                                 viewModel.copyPassword(id: password.id)
                             }
                         }
@@ -1604,6 +1611,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var settingsStatus = NativeInlineStatus()
     @Published var resultStatus = NativeInlineStatus()
     @Published var results: [NativeGeneratedPasswordListItem] = []
+    @Published private(set) var copiedPasswordIDs: Set<UUID> = []
     @Published var progressCompleted = 0
     @Published var progressTotal = 0
     @Published var isGenerating = false
@@ -2260,6 +2268,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             resultStatus = NativeInlineStatus()
             results = []
             generatedPasswordStore = [:]
+            copiedPasswordIDs = []
             currentGenerationSession = nil
             progressCompleted = 0
             progressTotal = 0
@@ -2269,6 +2278,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         generationTask?.cancel()
         results = []
         generatedPasswordStore = [:]
+        copiedPasswordIDs = []
         currentGenerationSession = NativeGenerationSession()
         progressCompleted = 0
         progressTotal = settings.count
@@ -2317,6 +2327,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                     self.isCancellingGeneration = false
                     self.generationTask = nil
                     self.generatedPasswordStore = [:]
+                    self.copiedPasswordIDs = []
                     self.resultStatus = NativeInlineStatus(message: "条件に合うパスワードを生成できませんでした。", tone: .error)
                 }
             }
@@ -2346,6 +2357,15 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
 
         copyToPasteboard(value)
+        copiedPasswordIDs.insert(id)
+    }
+
+    func characterCompositionHelpText(for id: UUID) -> String {
+        guard let value = generatedPasswordStore[id] else {
+            return "文字種の内訳を取得できません。"
+        }
+
+        return NativePasswordCharacterComposition(password: value).detailText
     }
 
     func exportResultsAsText() {
@@ -4039,6 +4059,63 @@ struct NativePasswordGradeMetric: Identifiable {
     let grade: NativePasswordGrade
 }
 
+struct NativePasswordCharacterComposition {
+    let uppercaseCount: Int
+    let lowercaseCount: Int
+    let digitCount: Int
+    let symbolCount: Int
+    let otherCount: Int
+
+    nonisolated init(password: String) {
+        let uppercaseSet = Set(uppercaseCharacters.map(String.init))
+        let lowercaseSet = Set(lowercaseCharacters.map(String.init))
+        let digitSet = Set(digitCharacters.map(String.init))
+        let symbolSet = Set(nativeSymbolOptions.map(\.value))
+
+        var uppercaseCount = 0
+        var lowercaseCount = 0
+        var digitCount = 0
+        var symbolCount = 0
+        var otherCount = 0
+
+        for character in password.map(String.init) {
+            if uppercaseSet.contains(character) {
+                uppercaseCount += 1
+            } else if lowercaseSet.contains(character) {
+                lowercaseCount += 1
+            } else if digitSet.contains(character) {
+                digitCount += 1
+            } else if symbolSet.contains(character) {
+                symbolCount += 1
+            } else {
+                otherCount += 1
+            }
+        }
+
+        self.uppercaseCount = uppercaseCount
+        self.lowercaseCount = lowercaseCount
+        self.digitCount = digitCount
+        self.symbolCount = symbolCount
+        self.otherCount = otherCount
+    }
+
+    var detailText: String {
+        var rows = [
+            "文字種の内訳",
+            "大文字: \(formatNumber(uppercaseCount))",
+            "小文字: \(formatNumber(lowercaseCount))",
+            "数字: \(formatNumber(digitCount))",
+            "記号: \(formatNumber(symbolCount))"
+        ]
+
+        if otherCount > 0 {
+            rows.append("その他: \(formatNumber(otherCount))")
+        }
+
+        return rows.joined(separator: "\n")
+    }
+}
+
 private enum NativePasswordRiskLevel: Int {
     case none = 0
     case minor = 1
@@ -4099,9 +4176,11 @@ struct NativePasswordAnalysis {
 
 private struct NativePasswordRow: View {
     let password: NativeGeneratedPasswordListItem
+    let isCopied: Bool
+    let characterCompositionHelpTextProvider: () -> String
     let palette: NativeThemePalette
     let onCopy: () -> Void
-    @State private var hasCopied = false
+    @State private var characterCompositionHelpText: String?
     @State private var showCopyFeedback = false
     @State private var copyFeedbackTask: Task<Void, Never>?
 
@@ -4110,6 +4189,7 @@ private struct NativePasswordRow: View {
             VStack(alignment: .leading, spacing: 5) {
                 NativePasswordPreviewLabel(text: password.displayValue, textColor: NSColor(palette.ink))
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .help(resolvedCharacterCompositionHelpText)
 
                 compactStrengthSummary
 
@@ -4124,7 +4204,6 @@ private struct NativePasswordRow: View {
             VStack(spacing: 6) {
                 Button {
                     onCopy()
-                    hasCopied = true
                     showCopyFeedback = true
                     copyFeedbackTask?.cancel()
                     copyFeedbackTask = Task {
@@ -4149,7 +4228,7 @@ private struct NativePasswordRow: View {
                                     .stroke(showCopyFeedback ? palette.accentStrong.opacity(0.45) : Color.clear, lineWidth: 4)
                             )
 
-                        if hasCopied {
+                        if isCopied {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(palette.accentStrong)
@@ -4178,9 +4257,20 @@ private struct NativePasswordRow: View {
                 .stroke(palette.panelBorder, lineWidth: 1)
         )
         .animation(.easeOut(duration: 0.16), value: showCopyFeedback)
+        .onHover { isHovering in
+            guard isHovering, characterCompositionHelpText == nil else {
+                return
+            }
+
+            characterCompositionHelpText = characterCompositionHelpTextProvider()
+        }
         .onDisappear {
             copyFeedbackTask?.cancel()
         }
+    }
+
+    private var resolvedCharacterCompositionHelpText: String {
+        characterCompositionHelpText ?? "文字種の内訳を読み込み中..."
     }
 
     private var compactStrengthSummary: some View {
@@ -4190,6 +4280,7 @@ private struct NativePasswordRow: View {
                 compactMetricsRow
             }
             .fixedSize(horizontal: true, vertical: false)
+            .help(resolvedCharacterCompositionHelpText)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 5) {
@@ -4198,6 +4289,7 @@ private struct NativePasswordRow: View {
 
                 compactMetricsRow
             }
+            .help(resolvedCharacterCompositionHelpText)
         }
     }
 
