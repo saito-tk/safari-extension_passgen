@@ -12,7 +12,7 @@ import Security
 import SwiftUI
 import UniformTypeIdentifiers
 
-private let nativeSymbolOptions: [NativeSymbolOption] = [
+nonisolated private let nativeSymbolOptions: [NativeSymbolOption] = [
     .init(label: "-", description: "ハイフン", value: "-"),
     .init(label: "_", description: "アンダーバー", value: "_"),
     .init(label: "@", description: "アット", value: "@"),
@@ -2697,8 +2697,8 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         decoder.dateDecodingStrategy = .iso8601
 
         switch version {
-        case 1:
-            return try decodePresetExportV1(from: data, object: object, decoder: decoder)
+        case NativePresetExportDocument.currentVersion:
+            return try decodePresetExport(from: data, object: object, decoder: decoder)
         default:
             throw NativePresetImportError(message: "対応していないプリセットJSONのバージョンです。")
         }
@@ -2716,17 +2716,17 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
         }
 
-        if let version = integerValue(root["version"]) {
-            return version
+        guard let version = integerValue(root["version"]) else {
+            throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
         }
 
-        return 1
+        return version
     }
 
-    private static func decodePresetExportV1(from data: Data, object: Any, decoder: JSONDecoder) throws -> [NativePasswordPreset] {
-        try validatePresetExportV1Object(object)
+    private static func decodePresetExport(from data: Data, object: Any, decoder: JSONDecoder) throws -> [NativePasswordPreset] {
+        try validatePresetExportObject(object)
 
-        let document = try decoder.decode(NativePresetExportV1Document.self, from: data)
+        let document = try decoder.decode(NativePresetExportPayload.self, from: data)
         guard !document.presets.isEmpty else {
             throw NativePresetImportError(message: "インポートできるプリセットがありません。")
         }
@@ -2751,7 +2751,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
     }
 
-    private static func validatePresetExportV1Object(_ object: Any) throws {
+    private static func validatePresetExportObject(_ object: Any) throws {
         guard let root = object as? [String: Any] else {
             throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
         }
@@ -2768,8 +2768,8 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             throw NativePresetImportError(message: "プリセットJSONの形式が正しくありません。")
         }
 
-        if let version = integerValue(root["version"]),
-           version != 1 {
+        guard let decodedVersion = integerValue(root["version"]),
+              decodedVersion == NativePresetExportDocument.currentVersion else {
             throw NativePresetImportError(message: "対応していないプリセットJSONのバージョンです。")
         }
 
@@ -2812,7 +2812,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     private static func validatePresetSettingsObject(_ object: [String: Any]) throws {
         let allowedKeys: Set<String> = [
             "uppercase", "lowercase", "digits", "includeSymbols",
-            "uppercaseSelections", "lowercaseSelections", "digitSelections", "selectAllSymbols", "symbols",
+            "uppercaseSelections", "lowercaseSelections", "digitSelections", "selectAllSymbols", "selectedSymbols",
             "length", "count", "minimumUppercase", "minimumLowercase", "minimumDigits", "minimumSymbols",
             "generationMode", "excludeSimilar", "requireEachSelectedType",
             "allowUppercaseFirst", "allowLowercaseFirst", "allowDigitsFirst", "allowSymbolsFirst",
@@ -2820,14 +2820,16 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         ]
         let requiredKeys: Set<String> = [
             "uppercase", "lowercase", "digits", "includeSymbols",
-            "uppercaseSelections", "lowercaseSelections", "digitSelections", "selectAllSymbols", "symbols",
+            "uppercaseSelections", "lowercaseSelections", "digitSelections", "selectAllSymbols",
             "length", "count", "minimumUppercase", "minimumLowercase", "minimumDigits", "minimumSymbols",
             "generationMode", "excludeSimilar", "requireEachSelectedType",
             "firstCharacterMode", "maxConsecutiveRun", "excludedCharacters"
         ]
         let keys = Set(object.keys)
 
-        guard keys.isSubset(of: allowedKeys), requiredKeys.isSubset(of: keys) else {
+        guard keys.isSubset(of: allowedKeys),
+              requiredKeys.isSubset(of: keys),
+              keys.contains("selectedSymbols") else {
             throw NativePresetImportError(message: "プリセットJSONの設定項目が正しくありません。")
         }
 
@@ -2841,7 +2843,6 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
               isBooleanArray(object["uppercaseSelections"], count: uppercaseCharacters.count),
               isBooleanArray(object["lowercaseSelections"], count: lowercaseCharacters.count),
               isBooleanArray(object["digitSelections"], count: digitCharacters.count),
-              isBooleanArray(object["symbols"], count: nativeSymbolOptions.count),
               let length = integerValue(object["length"]),
               let count = integerValue(object["count"]),
               let minimumUppercase = integerValue(object["minimumUppercase"]),
@@ -2854,6 +2855,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
               let firstCharacterMode = object["firstCharacterMode"] as? String,
               let decodedFirstCharacterMode = NativeFirstCharacterMode(rawValue: firstCharacterMode),
               object["excludedCharacters"] is String else {
+            throw NativePresetImportError(message: "プリセットJSONの設定値が正しくありません。")
+        }
+
+        guard isStringArray(object["selectedSymbols"]) else {
             throw NativePresetImportError(message: "プリセットJSONの設定値が正しくありません。")
         }
 
@@ -2893,8 +2898,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     private static func validatePresetSettings(_ settings: NativePasswordPresetSettings) throws {
         guard settings.uppercaseSelections.count == uppercaseCharacters.count,
               settings.lowercaseSelections.count == lowercaseCharacters.count,
-              settings.digitSelections.count == digitCharacters.count,
-              settings.symbols.count == nativeSymbolOptions.count else {
+              settings.digitSelections.count == digitCharacters.count else {
             throw NativePresetImportError(message: "プリセットJSONの文字選択数が正しくありません。")
         }
     }
@@ -2926,12 +2930,24 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         return candidate
     }
 
-    private static func isBooleanArray(_ value: Any?, count: Int) -> Bool {
-        guard let array = value as? [Any], array.count == count else {
+    private static func isBooleanArray(_ value: Any?, count: Int? = nil) -> Bool {
+        guard let array = value as? [Any] else {
+            return false
+        }
+
+        if let count, array.count != count {
             return false
         }
 
         return array.allSatisfy { $0 is Bool }
+    }
+
+    private static func isStringArray(_ value: Any?) -> Bool {
+        guard let array = value as? [Any] else {
+            return false
+        }
+
+        return array.allSatisfy { $0 is String }
     }
 
     private static func integerValue(_ value: Any?) -> Int? {
@@ -2976,6 +2992,17 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         normalizedSettings.fixedPrefix = sanitizeSingleLineText(normalizedSettings.fixedPrefix)
         normalizedSettings.selectAllSymbols = normalizedSettings.symbols.contains(true) && normalizedSettings.symbols.allSatisfy(\.self)
         return normalizedSettings
+    }
+
+    fileprivate static func symbolSelections(from selectedSymbols: [String]) -> [Bool] {
+        let selectedValues = Set(selectedSymbols)
+        return nativeSymbolOptions.map { selectedValues.contains($0.value) }
+    }
+
+    fileprivate static func selectedSymbolValues(from selections: [Bool]) -> [String] {
+        zip(nativeSymbolOptions, selections).compactMap { option, isSelected in
+            isSelected ? option.value : nil
+        }
     }
 
     private static func sanitizePresetName(_ value: String) -> String {
@@ -3498,7 +3525,7 @@ struct NativePasswordSettings: Codable {
         case lowercaseSelections
         case digitSelections
         case selectAllSymbols
-        case symbols
+        case selectedSymbols
         case length
         case count
         case minimumUppercase
@@ -3590,7 +3617,10 @@ struct NativePasswordSettings: Codable {
         lowercaseSelections = try container.decodeIfPresent([Bool].self, forKey: .lowercaseSelections) ?? Self.defaultSettings.lowercaseSelections
         digitSelections = try container.decodeIfPresent([Bool].self, forKey: .digitSelections) ?? Self.defaultSettings.digitSelections
         selectAllSymbols = try container.decodeIfPresent(Bool.self, forKey: .selectAllSymbols) ?? Self.defaultSettings.selectAllSymbols
-        symbols = try container.decodeIfPresent([Bool].self, forKey: .symbols) ?? Self.defaultSettings.symbols
+        symbols = NativePasswordGeneratorViewModel.symbolSelections(
+            from: try container.decodeIfPresent([String].self, forKey: .selectedSymbols)
+                ?? NativePasswordGeneratorViewModel.selectedSymbolValues(from: Self.defaultSettings.symbols)
+        )
         length = try container.decodeIfPresent(Int.self, forKey: .length) ?? Self.defaultSettings.length
         count = try container.decodeIfPresent(Int.self, forKey: .count) ?? Self.defaultSettings.count
         minimumUppercase = try container.decodeIfPresent(Int.self, forKey: .minimumUppercase) ?? (uppercase ? 25 : 0)
@@ -3633,7 +3663,7 @@ struct NativePasswordSettings: Codable {
         try container.encode(lowercaseSelections, forKey: .lowercaseSelections)
         try container.encode(digitSelections, forKey: .digitSelections)
         try container.encode(selectAllSymbols, forKey: .selectAllSymbols)
-        try container.encode(symbols, forKey: .symbols)
+        try container.encode(NativePasswordGeneratorViewModel.selectedSymbolValues(from: symbols), forKey: .selectedSymbols)
         try container.encode(length, forKey: .length)
         try container.encode(count, forKey: .count)
         try container.encode(minimumUppercase, forKey: .minimumUppercase)
@@ -3661,7 +3691,7 @@ private struct NativePresetImportError: Error {
 
 private struct NativePresetExportDocument: Codable {
     static let formatIdentifier = "passgen.presets"
-    static let currentVersion = 1
+    static let currentVersion = 2
 
     let format: String
     let version: Int
@@ -3676,7 +3706,7 @@ private struct NativePresetExportDocument: Codable {
     }
 }
 
-private struct NativePresetExportV1Document: Decodable {
+private struct NativePresetExportPayload: Decodable {
     let format: String?
     let version: Int?
     let exportedAt: Date?
@@ -3755,6 +3785,35 @@ struct NativePasswordPresetSettings: Codable, Equatable {
     var maxConsecutiveRun: Int
     var excludedCharacters: String
 
+    private enum CodingKeys: String, CodingKey {
+        case uppercase
+        case lowercase
+        case digits
+        case includeSymbols
+        case uppercaseSelections
+        case lowercaseSelections
+        case digitSelections
+        case selectAllSymbols
+        case selectedSymbols
+        case length
+        case count
+        case minimumUppercase
+        case minimumLowercase
+        case minimumDigits
+        case minimumSymbols
+        case generationMode
+        case excludeSimilar
+        case requireEachSelectedType
+        case allowUppercaseFirst
+        case allowLowercaseFirst
+        case allowDigitsFirst
+        case allowSymbolsFirst
+        case firstCharacterMode
+        case fixedPrefix
+        case maxConsecutiveRun
+        case excludedCharacters
+    }
+
     init(settings: NativePasswordSettings) {
         uppercase = settings.uppercase
         lowercase = settings.lowercase
@@ -3792,6 +3851,67 @@ struct NativePasswordPresetSettings: Codable, Equatable {
             allowSymbolsFirst = nil
             fixedPrefix = settings.fixedPrefix
         }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        uppercase = try container.decode(Bool.self, forKey: .uppercase)
+        lowercase = try container.decode(Bool.self, forKey: .lowercase)
+        digits = try container.decode(Bool.self, forKey: .digits)
+        includeSymbols = try container.decode(Bool.self, forKey: .includeSymbols)
+        uppercaseSelections = try container.decode([Bool].self, forKey: .uppercaseSelections)
+        lowercaseSelections = try container.decode([Bool].self, forKey: .lowercaseSelections)
+        digitSelections = try container.decode([Bool].self, forKey: .digitSelections)
+        selectAllSymbols = try container.decode(Bool.self, forKey: .selectAllSymbols)
+        symbols = NativePasswordGeneratorViewModel.symbolSelections(from: try container.decode([String].self, forKey: .selectedSymbols))
+        length = try container.decode(Int.self, forKey: .length)
+        count = try container.decode(Int.self, forKey: .count)
+        minimumUppercase = try container.decode(Int.self, forKey: .minimumUppercase)
+        minimumLowercase = try container.decode(Int.self, forKey: .minimumLowercase)
+        minimumDigits = try container.decode(Int.self, forKey: .minimumDigits)
+        minimumSymbols = try container.decode(Int.self, forKey: .minimumSymbols)
+        generationMode = try container.decode(NativeGenerationMode.self, forKey: .generationMode)
+        excludeSimilar = try container.decode(Bool.self, forKey: .excludeSimilar)
+        requireEachSelectedType = try container.decode(Bool.self, forKey: .requireEachSelectedType)
+        allowUppercaseFirst = try container.decodeIfPresent(Bool.self, forKey: .allowUppercaseFirst)
+        allowLowercaseFirst = try container.decodeIfPresent(Bool.self, forKey: .allowLowercaseFirst)
+        allowDigitsFirst = try container.decodeIfPresent(Bool.self, forKey: .allowDigitsFirst)
+        allowSymbolsFirst = try container.decodeIfPresent(Bool.self, forKey: .allowSymbolsFirst)
+        firstCharacterMode = try container.decode(NativeFirstCharacterMode.self, forKey: .firstCharacterMode)
+        fixedPrefix = try container.decodeIfPresent(String.self, forKey: .fixedPrefix)
+        maxConsecutiveRun = try container.decode(Int.self, forKey: .maxConsecutiveRun)
+        excludedCharacters = try container.decode(String.self, forKey: .excludedCharacters)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(uppercase, forKey: .uppercase)
+        try container.encode(lowercase, forKey: .lowercase)
+        try container.encode(digits, forKey: .digits)
+        try container.encode(includeSymbols, forKey: .includeSymbols)
+        try container.encode(uppercaseSelections, forKey: .uppercaseSelections)
+        try container.encode(lowercaseSelections, forKey: .lowercaseSelections)
+        try container.encode(digitSelections, forKey: .digitSelections)
+        try container.encode(selectAllSymbols, forKey: .selectAllSymbols)
+        try container.encode(NativePasswordGeneratorViewModel.selectedSymbolValues(from: symbols), forKey: .selectedSymbols)
+        try container.encode(length, forKey: .length)
+        try container.encode(count, forKey: .count)
+        try container.encode(minimumUppercase, forKey: .minimumUppercase)
+        try container.encode(minimumLowercase, forKey: .minimumLowercase)
+        try container.encode(minimumDigits, forKey: .minimumDigits)
+        try container.encode(minimumSymbols, forKey: .minimumSymbols)
+        try container.encode(generationMode, forKey: .generationMode)
+        try container.encode(excludeSimilar, forKey: .excludeSimilar)
+        try container.encode(requireEachSelectedType, forKey: .requireEachSelectedType)
+        try container.encodeIfPresent(allowUppercaseFirst, forKey: .allowUppercaseFirst)
+        try container.encodeIfPresent(allowLowercaseFirst, forKey: .allowLowercaseFirst)
+        try container.encodeIfPresent(allowDigitsFirst, forKey: .allowDigitsFirst)
+        try container.encodeIfPresent(allowSymbolsFirst, forKey: .allowSymbolsFirst)
+        try container.encode(firstCharacterMode, forKey: .firstCharacterMode)
+        try container.encodeIfPresent(fixedPrefix, forKey: .fixedPrefix)
+        try container.encode(maxConsecutiveRun, forKey: .maxConsecutiveRun)
+        try container.encode(excludedCharacters, forKey: .excludedCharacters)
     }
 
     func applying(to currentSettings: NativePasswordSettings) -> NativePasswordSettings {
@@ -4260,7 +4380,7 @@ private struct StatusMessageView: View {
     }
 }
 
-private struct NativeSymbolOption {
+private struct NativeSymbolOption: Sendable {
     let label: String
     let description: String
     let value: String
