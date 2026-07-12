@@ -1664,14 +1664,23 @@ private struct NativeSwiftLayoutMetrics {
         let proposedCenterWidth = usableWidth * 0.57
         let minimumCenterWidth: CGFloat = 520
         let minimumRightWidth: CGFloat = 360
-        let resolvedCenterWidth = min(
-            max(proposedCenterWidth, minimumCenterWidth),
-            max(usableWidth - minimumRightWidth, minimumCenterWidth)
-        )
 
         sidebarWidth = resolvedSidebarWidth
-        centerWidth = resolvedCenterWidth
-        rightWidth = max(usableWidth - resolvedCenterWidth, minimumRightWidth)
+
+        if usableWidth >= minimumCenterWidth + minimumRightWidth {
+            let resolvedCenterWidth = min(
+                max(proposedCenterWidth, minimumCenterWidth),
+                usableWidth - minimumRightWidth
+            )
+            centerWidth = resolvedCenterWidth
+            rightWidth = usableWidth - resolvedCenterWidth
+        } else {
+            // 最小幅の合計より狭い場合は比率で分配し、カラムがウィンドウ外へはみ出さないようにする
+            let totalMinimumWidth = minimumCenterWidth + minimumRightWidth
+            let resolvedCenterWidth = usableWidth * (minimumCenterWidth / totalMinimumWidth)
+            centerWidth = resolvedCenterWidth
+            rightWidth = max(usableWidth - resolvedCenterWidth, 0)
+        }
     }
 }
 

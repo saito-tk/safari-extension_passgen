@@ -72,12 +72,14 @@ class ViewController: NSViewController {
         window.toolbar = nil
         installSidebarAccessoryIfNeeded(on: window)
         updateSidebarToggleButton(isVisible: nativeViewModel.isSavedSettingsSidebarVisible)
-        updateWindowMinSize(isSidebarVisible: nativeViewModel.isSavedSettingsSidebarVisible)
 
         if !window.setFrameUsingName(windowFrameAutosaveName) {
             window.setContentSize(preferredWindowSize)
         }
         window.setFrameAutosaveName(windowFrameAutosaveName)
+
+        // フレーム復元後に適用し、復元されたフレームが最小サイズを下回っていても補正されるようにする
+        updateWindowMinSize(isSidebarVisible: nativeViewModel.isSavedSettingsSidebarVisible)
     }
 
     private func updateWindowMinSize(isSidebarVisible: Bool) {
@@ -85,7 +87,16 @@ class ViewController: NSViewController {
             return
         }
 
-        window.minSize = isSidebarVisible ? sidebarVisibleMinWindowSize : sidebarHiddenMinWindowSize
+        let minSize = isSidebarVisible ? sidebarVisibleMinWindowSize : sidebarHiddenMinWindowSize
+        window.minSize = minSize
+
+        // minSize は手動リサイズしか制限しないため、現在のウィンドウが下回っている場合は広げる
+        if window.frame.width < minSize.width || window.frame.height < minSize.height {
+            var frame = window.frame
+            frame.size.width = max(frame.width, minSize.width)
+            frame.size.height = max(frame.height, minSize.height)
+            window.setFrame(frame, display: true, animate: true)
+        }
     }
 
     @objc private func toggleSavedSettingsSidebar(_ sender: Any?) {
