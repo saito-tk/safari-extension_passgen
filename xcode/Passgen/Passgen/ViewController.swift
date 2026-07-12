@@ -13,13 +13,8 @@ class ViewController: NSViewController {
     private let nativeViewModel = NativePasswordGeneratorViewModel()
     private lazy var nativeHostingView = NSHostingView(rootView: NativePasswordGeneratorView(viewModel: nativeViewModel))
     private let preferredWindowSize = NSSize(width: 1380, height: 840)
-    // NativeSwiftLayoutMetrics のカラム最小幅 (サイドバー244 + 中央520 + 右360 + 余白) から導出した下限
-    private let sidebarVisibleMinWindowSize = NSSize(width: 1240, height: 760)
-    private let sidebarHiddenMinWindowSize = NSSize(width: 980, height: 720)
-    // サイドバー幅 (~244) + カラム間スペース (16)。表示切り替え時のウィンドウ幅の増減量
-    private let sidebarWidthDelta: CGFloat = 260
+    private let minimumWindowSize = NSSize(width: 980, height: 720)
     private let windowFrameAutosaveName = "PassgenMainWindow"
-    private var lastObservedSidebarVisibility: Bool?
     private var sidebarVisibilityObserver: AnyCancellable?
     private weak var sidebarToggleButton: NSButton?
     private var sidebarAccessoryController: NSTitlebarAccessoryViewController?
@@ -62,34 +57,7 @@ class ViewController: NSViewController {
             .receive(on: RunLoop.main)
             .sink { [weak self] isVisible in
                 self?.updateSidebarToggleButton(isVisible: isVisible)
-                self?.adjustWindowWidthForSidebarChange(isSidebarVisible: isVisible)
-                self?.updateWindowMinSize(isSidebarVisible: isVisible)
             }
-    }
-
-    // サイドバーの表示切り替えでは中央・右カラムの幅を維持し、ウィンドウ幅をサイドバー分だけ増減させる
-    private func adjustWindowWidthForSidebarChange(isSidebarVisible: Bool) {
-        defer {
-            lastObservedSidebarVisibility = isSidebarVisible
-        }
-
-        guard let window = configuredWindow,
-              let previousVisibility = lastObservedSidebarVisibility,
-              previousVisibility != isSidebarVisible else {
-            return
-        }
-
-        var frame = window.frame
-        frame.size.width += isSidebarVisible ? sidebarWidthDelta : -sidebarWidthDelta
-
-        if let screenFrame = window.screen?.visibleFrame {
-            frame.size.width = min(frame.size.width, screenFrame.width)
-            if frame.maxX > screenFrame.maxX {
-                frame.origin.x = screenFrame.maxX - frame.size.width
-            }
-        }
-
-        window.setFrame(frame, display: true, animate: true)
     }
 
     private func configureWindow(_ window: NSWindow) {
@@ -107,23 +75,12 @@ class ViewController: NSViewController {
         }
         window.setFrameAutosaveName(windowFrameAutosaveName)
 
-        // フレーム復元後に適用し、復元されたフレームが最小サイズを下回っていても補正されるようにする
-        updateWindowMinSize(isSidebarVisible: nativeViewModel.isSavedSettingsSidebarVisible)
-    }
+        window.minSize = minimumWindowSize
 
-    private func updateWindowMinSize(isSidebarVisible: Bool) {
-        guard let window = configuredWindow else {
-            return
-        }
-
-        let minSize = isSidebarVisible ? sidebarVisibleMinWindowSize : sidebarHiddenMinWindowSize
-        window.minSize = minSize
-
-        // minSize は手動リサイズしか制限しないため、現在のウィンドウが下回っている場合は広げる
-        if window.frame.width < minSize.width || window.frame.height < minSize.height {
+        if window.frame.width < minimumWindowSize.width || window.frame.height < minimumWindowSize.height {
             var frame = window.frame
-            frame.size.width = max(frame.width, minSize.width)
-            frame.size.height = max(frame.height, minSize.height)
+            frame.size.width = max(frame.width, minimumWindowSize.width)
+            frame.size.height = max(frame.height, minimumWindowSize.height)
             window.setFrame(frame, display: true, animate: true)
         }
     }

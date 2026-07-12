@@ -45,7 +45,8 @@ nonisolated private let nativeSymbolOptions: [NativeSymbolOption] = [
     .init(label: "=", description: "イコール", value: "=")
 ]
 
-private let nativeSimilarCharacters = Set(["I", "l", "1", "O", "0", "o"])
+let nativeSimilarCharacterOptions = ["O", "o", "0", "I", "l", "1"]
+private let nativeSimilarCharacters = Set(nativeSimilarCharacterOptions)
 let nativeSettingsStorageKey = "nativePassgenSettings"
 private let nativePresetsStorageKey = "nativePassgenPresets"
 private let nativeMinPasswordLength = 4
@@ -55,7 +56,6 @@ private let nativeMaxPasswordCount = 1000
 private let nativeMaxGeneratedCharacters = nativeMaxPasswordLength * 10
 private let nativePasswordYieldInterval = 2_048
 private let nativeMaxConsecutiveRunLimit = 99
-private let nativeClipboardAutoClearNanoseconds: UInt64 = 90_000_000_000
 private let nativeDetailedAnalysisMaxLength = 10_000
 private let nativeUniformCompositionMaxAttempts = 64
 nonisolated private let uppercaseCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -152,6 +152,12 @@ struct NativePasswordGeneratorView: View {
 
             viewModel.applyDisplayTheme(theme)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .passwordResultPreferencesDidChange)) { _ in
+            viewModel.refreshResultPreferences()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .similarCharacterExclusionsDidChange)) { _ in
+            viewModel.refreshSimilarCharacterExclusions()
+        }
     }
 
     private func savedSettingsColumn(palette: NativeThemePalette) -> some View {
@@ -162,7 +168,6 @@ struct NativePasswordGeneratorView: View {
             .padding(.bottom, 4)
         }
         .scrollIndicators(.visible)
-        .nativeScrollBottomFade()
     }
 
     private func centerColumn(palette: NativeThemePalette) -> some View {
@@ -175,7 +180,6 @@ struct NativePasswordGeneratorView: View {
             .padding(.bottom, 4)
         }
         .scrollIndicators(.visible)
-        .nativeScrollBottomFade()
     }
 
     private func rightColumn(palette: NativeThemePalette) -> some View {
@@ -432,10 +436,8 @@ struct NativePasswordGeneratorView: View {
                                     Label(preset.isLocked ? "ロック解除" : "ロック", systemImage: preset.isLocked ? "lock.open" : "lock")
                                 }
 
-                                Button("削除", role: .destructive) {
-                                    if preset.isLocked {
-                                        viewModel.showLockedPresetDeletionMessage()
-                                    } else {
+                                if !preset.isLocked {
+                                    Button("削除", role: .destructive) {
                                         presetPendingDeletion = preset
                                     }
                                 }
@@ -606,11 +608,11 @@ struct NativePasswordGeneratorView: View {
 
         switch tab {
         case .uppercase:
-            return nativeSimilarCharacters.intersection(Set(uppercaseCharacters.map(String.init)))
+            return viewModel.similarCharacterExclusionSet.intersection(Set(uppercaseCharacters.map(String.init)))
         case .lowercase:
-            return nativeSimilarCharacters.intersection(Set(lowercaseCharacters.map(String.init)))
+            return viewModel.similarCharacterExclusionSet.intersection(Set(lowercaseCharacters.map(String.init)))
         case .digits:
-            return nativeSimilarCharacters.intersection(Set(digitCharacters.map(String.init)))
+            return viewModel.similarCharacterExclusionSet.intersection(Set(digitCharacters.map(String.init)))
         case .symbols:
             return []
         }
@@ -1042,91 +1044,95 @@ struct NativePasswordGeneratorView: View {
 
     private func resultsCard(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text("生成結果")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(palette.ink)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 6) {
+                    Text("生成結果")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(palette.ink)
+                        .fixedSize(horizontal: true, vertical: false)
 
-                        Text(viewModel.progressText)
-                            .font(.system(size: 13, weight: .semibold))
+                    Text(viewModel.progressText)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(palette.accentStrong)
+                        .fixedSize(horizontal: true, vertical: false)
+
+                    Button {
+                        isStrengthHelpPresented.toggle()
+                    } label: {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(palette.accentStrong)
-
-                        Button {
-                            isStrengthHelpPresented.toggle()
-                        } label: {
-                            Image(systemName: "questionmark.circle")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(palette.accentStrong)
-                                .frame(width: 24, height: 24)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("強度評価の説明")
-                        .popover(isPresented: $isStrengthHelpPresented, arrowEdge: .top) {
-                            strengthHelpPopover(palette: palette)
-                        }
+                            .frame(width: 24, height: 24)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("強度評価の説明")
+                    .popover(isPresented: $isStrengthHelpPresented, arrowEdge: .top) {
+                        strengthHelpPopover(palette: palette)
                     }
 
-                    Text("コピーは 90 秒後に自動クリア")
+                    Spacer(minLength: 0)
+
+                    Button {
+                        viewModel.toggleResultMask()
+                    } label: {
+                        Image(systemName: viewModel.isResultMaskEnabled ? "eye.slash" : "eye")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(palette.accentStrong)
+                            .frame(width: 30, height: 30)
+                            .background(
+                                Circle()
+                                    .fill(palette.accentSoft)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(viewModel.isResultMaskEnabled ? "パスワードを表示" : "パスワードを隠す")
+
+                    Button {
+                        viewModel.clearResults()
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(viewModel.canClearResults ? palette.accentStrong : palette.disabledText)
+                            .frame(width: 30, height: 30)
+                            .background(
+                                Circle()
+                                    .fill(viewModel.canClearResults ? palette.accentSoft : palette.disabledBackground)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!viewModel.canClearResults)
+                    .help("生成結果をクリア")
+                }
+
+                HStack(spacing: 10) {
+                    Text(viewModel.clipboardAutoClearDescription)
                         .font(.system(size: 12))
                         .foregroundStyle(palette.muted)
                         .lineLimit(1)
-                }
 
-                Spacer(minLength: 0)
+                    Spacer(minLength: 0)
 
-                Button {
-                    viewModel.toggleResultMask()
-                } label: {
-                    Image(systemName: viewModel.isResultMaskEnabled ? "eye.slash" : "eye")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(palette.accentStrong)
-                        .frame(width: 30, height: 30)
-                        .background(
-                            Circle()
-                                .fill(palette.accentSoft)
-                        )
+                    Button {
+                        viewModel.exportResultsAsText()
+                    } label: {
+                        Label("テキスト出力", systemImage: "square.and.arrow.down")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(viewModel.canExportResults ? palette.accentStrong : palette.disabledText)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(viewModel.canExportResults ? palette.accentSoft : palette.disabledBackground)
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(palette.panelBorder, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!viewModel.canExportResults)
                 }
-                .buttonStyle(.plain)
-                .help(viewModel.isResultMaskEnabled ? "パスワードを表示" : "パスワードを隠す")
-
-                Button {
-                    viewModel.clearResults()
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(viewModel.canClearResults ? palette.accentStrong : palette.disabledText)
-                        .frame(width: 30, height: 30)
-                        .background(
-                            Circle()
-                                .fill(viewModel.canClearResults ? palette.accentSoft : palette.disabledBackground)
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(!viewModel.canClearResults)
-                .help("生成結果をクリア")
-
-                Button {
-                    viewModel.exportResultsAsText()
-                } label: {
-                    Label("テキスト出力", systemImage: "square.and.arrow.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(viewModel.canExportResults ? palette.accentStrong : palette.disabledText)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(viewModel.canExportResults ? palette.accentSoft : palette.disabledBackground)
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(palette.panelBorder, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(!viewModel.canExportResults)
             }
 
             StatusMessageView(status: viewModel.resultStatus, palette: palette)
@@ -1778,7 +1784,11 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var progressTotal = 0
     @Published var isGenerating = false
     @Published var isCancellingGeneration = false
-    @Published var isResultMaskEnabled = false
+    @Published var isResultMaskEnabled: Bool
+    @Published private(set) var isClipboardAutoClearEnabled: Bool
+    @Published private(set) var clipboardAutoClearSeconds: Int
+    @Published private(set) var masksGeneratedPasswordsByDefault: Bool
+    @Published private(set) var similarCharacterExclusions: [String]
     @Published var isSavedSettingsSidebarVisible = true
     @Published var presetNameText = ""
     @Published var presetStatus = NativeInlineStatus()
@@ -1820,6 +1830,14 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         settings = restoredSettings
         lengthText = String(restoredSettings.length)
         countText = String(restoredSettings.count)
+        let isClipboardAutoClearEnabled = AppPreferences.shared.isClipboardAutoClearEnabled
+        let clipboardAutoClearSeconds = AppPreferences.shared.clipboardAutoClearSeconds
+        let masksGeneratedPasswordsByDefault = AppPreferences.shared.masksGeneratedPasswordsByDefault
+        self.isClipboardAutoClearEnabled = isClipboardAutoClearEnabled
+        self.clipboardAutoClearSeconds = clipboardAutoClearSeconds
+        self.masksGeneratedPasswordsByDefault = masksGeneratedPasswordsByDefault
+        similarCharacterExclusions = AppPreferences.shared.similarCharacterExclusions
+        isResultMaskEnabled = masksGeneratedPasswordsByDefault
         presets = Self.restorePresets()
         normalizeMaskedPresetSortKeyIfNeeded()
         syncCategorySelectionFlags()
@@ -2211,7 +2229,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     func presetConditionSummary(for preset: NativePasswordPreset) -> String {
         let settings = preset.settings.applying(to: NativePasswordSettings.defaultSettings)
-        let condition = Self.conditionSummary(for: settings).replacingOccurrences(of: "/", with: " / ")
+        let condition = Self.conditionSummary(for: settings, similarCharacterExclusions: similarCharacterExclusionSet).replacingOccurrences(of: "/", with: " / ")
         return "文字数 \(formatNumber(settings.length))\n\(condition)"
     }
 
@@ -2366,6 +2384,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
         settings.excludeSimilar.toggle()
         persistSettings()
+    }
+
+    var similarCharacterExclusionSet: Set<String> {
+        Set(similarCharacterExclusions)
     }
 
     func toggleRequireEachSelectedType() {
@@ -2530,8 +2552,10 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         progressTotal = settings.count
         isGenerating = true
         isCancellingGeneration = false
+        isResultMaskEnabled = masksGeneratedPasswordsByDefault
 
         let snapshot = settings
+        let similarCharacterExclusions = similarCharacterExclusionSet
 
         generationTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else {
@@ -2541,7 +2565,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             do {
                 for index in 0..<snapshot.count {
                     try Task.checkCancellation()
-                    let password = try await Self.createPassword(using: snapshot)
+                    let password = try await Self.createPassword(using: snapshot, similarCharacterExclusions: similarCharacterExclusions)
                     let listItem = NativeGeneratedPasswordListItem(password: password)
 
                     await MainActor.run {
@@ -2604,13 +2628,16 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
         let changeCount = copyToPasteboard(value)
         copiedPasswordIDs.insert(id)
-        scheduleClipboardAutoClear(afterChangeCount: changeCount)
+        if isClipboardAutoClearEnabled {
+            scheduleClipboardAutoClear(afterChangeCount: changeCount)
+        }
     }
 
     private func scheduleClipboardAutoClear(afterChangeCount changeCount: Int) {
         clipboardClearTask?.cancel()
         clipboardClearTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: nativeClipboardAutoClearNanoseconds)
+            let duration = UInt64(clipboardAutoClearSeconds) * 1_000_000_000
+            try? await Task.sleep(nanoseconds: duration)
             guard !Task.isCancelled else {
                 return
             }
@@ -2629,6 +2656,25 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     func toggleResultMask() {
         isResultMaskEnabled.toggle()
+    }
+
+    var clipboardAutoClearDescription: String {
+        isClipboardAutoClearEnabled ? "コピーは \(clipboardAutoClearSeconds) 秒後に自動クリア" : "コピー後の自動削除はオフ"
+    }
+
+    func refreshResultPreferences() {
+        isClipboardAutoClearEnabled = AppPreferences.shared.isClipboardAutoClearEnabled
+        clipboardAutoClearSeconds = AppPreferences.shared.clipboardAutoClearSeconds
+        masksGeneratedPasswordsByDefault = AppPreferences.shared.masksGeneratedPasswordsByDefault
+
+        if !isClipboardAutoClearEnabled {
+            clipboardClearTask?.cancel()
+            clipboardClearTask = nil
+        }
+    }
+
+    func refreshSimilarCharacterExclusions() {
+        similarCharacterExclusions = AppPreferences.shared.similarCharacterExclusions
     }
 
     func clearResults() {
@@ -2830,7 +2876,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             return "使える文字がありません。設定を見直してください。"
         }
 
-        let pools = Self.buildPools(using: settings)
+        let pools = Self.buildPools(using: settings, similarCharacterExclusions: similarCharacterExclusionSet)
         if pools.isEmpty {
             return "選択した条件で使える文字がありません。設定を見直してください。"
         }
@@ -3119,7 +3165,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             "uppercase", "lowercase", "digits", "includeSymbols",
             "uppercaseSelections", "lowercaseSelections", "digitSelections", "selectAllSymbols", "selectedSymbols",
             "length", "count", "minimumUppercase", "minimumLowercase", "minimumDigits", "minimumSymbols",
-            "generationMode", "excludeSimilar", "requireEachSelectedType",
+            "generationMode", "excludeSimilar", "similarCharacterExclusions", "requireEachSelectedType",
             "allowUppercaseFirst", "allowLowercaseFirst", "allowDigitsFirst", "allowSymbolsFirst",
             "firstCharacterMode", "fixedPrefix", "maxConsecutiveRun", "excludedCharacters"
         ]
@@ -3161,6 +3207,13 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
               let decodedFirstCharacterMode = NativeFirstCharacterMode(rawValue: firstCharacterMode),
               object["excludedCharacters"] is String else {
             throw NativePresetImportError(message: "プリセットJSONの設定値が正しくありません。")
+        }
+
+        if let rawSimilarCharacterExclusions = object["similarCharacterExclusions"] {
+            guard let similarCharacterExclusions = rawSimilarCharacterExclusions as? [String],
+                  Set(similarCharacterExclusions).isSubset(of: nativeSimilarCharacters) else {
+                throw NativePresetImportError(message: "プリセットJSONの似た文字除外設定が正しくありません。")
+            }
         }
 
         guard isStringArray(object["selectedSymbols"]) else {
@@ -3329,8 +3382,8 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         return formatter.string(from: date)
     }
 
-    private static func conditionSummary(for settings: NativePasswordSettings) -> String {
-        let pools = buildPools(using: settings)
+    private static func conditionSummary(for settings: NativePasswordSettings, similarCharacterExclusions: Set<String>) -> String {
+        let pools = buildPools(using: settings, similarCharacterExclusions: similarCharacterExclusions)
         let allCharacters = combinePools(pools)
         return "条件 \(formatNumber(allCharacters.count))字/\(formatNumber(pools.count))種"
     }
@@ -3386,8 +3439,8 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         "件数に範囲外の値が入力されたため、\(formatNumber(normalizedCount)) に補正しました。現在の文字数で設定できる件数は \(formatCountRange(nativeMinPasswordCount, maxCountForLength)) です。"
     }
 
-    private static func createPassword(using settings: NativePasswordSettings) async throws -> NativeGeneratedPassword {
-        let pools = buildPools(using: settings)
+    private static func createPassword(using settings: NativePasswordSettings, similarCharacterExclusions: Set<String>) async throws -> NativeGeneratedPassword {
+        let pools = buildPools(using: settings, similarCharacterExclusions: similarCharacterExclusions)
         let allCharacters = combinePools(pools)
 
         if settings.generationMode == .completeUniform {
@@ -3703,11 +3756,11 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         }
     }
 
-    private static func buildPools(using settings: NativePasswordSettings) -> [NativeCharacterPool] {
+    private static func buildPools(using settings: NativePasswordSettings, similarCharacterExclusions: Set<String>) -> [NativeCharacterPool] {
         var pools: [NativeCharacterPool] = []
-        appendPoolIfNeeded(&pools, isEnabled: settings.uppercase, id: "uppercase", sourceCharacters: selectedCharacters(from: uppercaseCharacters, selections: settings.uppercaseSelections).joined(), excludeSimilar: settings.excludeSimilar, excludedCharacters: [])
-        appendPoolIfNeeded(&pools, isEnabled: settings.lowercase, id: "lowercase", sourceCharacters: selectedCharacters(from: lowercaseCharacters, selections: settings.lowercaseSelections).joined(), excludeSimilar: settings.excludeSimilar, excludedCharacters: [])
-        appendPoolIfNeeded(&pools, isEnabled: settings.digits, id: "digits", sourceCharacters: selectedCharacters(from: digitCharacters, selections: settings.digitSelections).joined(), excludeSimilar: settings.excludeSimilar, excludedCharacters: [])
+        appendPoolIfNeeded(&pools, isEnabled: settings.uppercase, id: "uppercase", sourceCharacters: selectedCharacters(from: uppercaseCharacters, selections: settings.uppercaseSelections).joined(), excludeSimilar: settings.excludeSimilar, excludedCharacters: similarCharacterExclusions)
+        appendPoolIfNeeded(&pools, isEnabled: settings.lowercase, id: "lowercase", sourceCharacters: selectedCharacters(from: lowercaseCharacters, selections: settings.lowercaseSelections).joined(), excludeSimilar: settings.excludeSimilar, excludedCharacters: similarCharacterExclusions)
+        appendPoolIfNeeded(&pools, isEnabled: settings.digits, id: "digits", sourceCharacters: selectedCharacters(from: digitCharacters, selections: settings.digitSelections).joined(), excludeSimilar: settings.excludeSimilar, excludedCharacters: similarCharacterExclusions)
         appendPoolIfNeeded(&pools, isEnabled: settings.includeSymbols, id: "symbols", sourceCharacters: selectedSymbolCharacters(from: settings), excludeSimilar: false, excludedCharacters: [])
 
         return pools
@@ -3730,7 +3783,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         var seen = Set<String>()
 
         return characters.map(String.init).filter { character in
-            if excludeSimilar && nativeSimilarCharacters.contains(character) {
+            if excludeSimilar && excludedCharacters.contains(character) {
                 return false
             }
 
@@ -6418,17 +6471,6 @@ private func normalizeFullWidthDigits(_ value: String) -> String {
 }
 
 private extension View {
-    // スクロール下端でカードが唐突に切れて見えないよう、境界をフェードさせる
-    func nativeScrollBottomFade() -> some View {
-        mask(
-            VStack(spacing: 0) {
-                Rectangle()
-                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 14)
-            }
-        )
-    }
-
     func nativeCardStyle(palette: NativeThemePalette) -> some View {
         self
             .background(

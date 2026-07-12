@@ -16,7 +16,7 @@ final class SettingsWindowController: NSWindowController {
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
-        window.setContentSize(NSSize(width: 390, height: 330))
+        window.setContentSize(NSSize(width: 390, height: 530))
         super.init(window: window)
     }
 
@@ -30,6 +30,10 @@ private struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedAppearanceMode = AppPreferences.shared.appearanceMode
     @State private var selectedDisplayTheme = AppPreferences.shared.displayTheme
+    @State private var isClipboardAutoClearEnabled = AppPreferences.shared.isClipboardAutoClearEnabled
+    @State private var clipboardAutoClearSeconds = AppPreferences.shared.clipboardAutoClearSeconds
+    @State private var masksGeneratedPasswordsByDefault = AppPreferences.shared.masksGeneratedPasswordsByDefault
+    @State private var similarCharacterExclusions = Set(AppPreferences.shared.similarCharacterExclusions)
     private let displayThemeColumns = Array(repeating: GridItem(.fixed(34), spacing: 10), count: 7)
 
     var body: some View {
@@ -46,6 +50,35 @@ private struct SettingsView: View {
                 .pickerStyle(.segmented)
 
                 Text("アプリ全体の外観を切り替えます。System は macOS の設定に追従します。")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("パスワードの保護")
+                    .font(.system(size: 15, weight: .semibold))
+
+                Toggle("コピー後に自動削除", isOn: $isClipboardAutoClearEnabled)
+
+                if isClipboardAutoClearEnabled {
+                    Stepper(value: $clipboardAutoClearSeconds, in: AppPreferences.minimumClipboardAutoClearSeconds...AppPreferences.maximumClipboardAutoClearSeconds, step: 5) {
+                        Text("\(clipboardAutoClearSeconds) 秒後に削除")
+                    }
+                }
+
+                Toggle("生成後はパスワードを隠す", isOn: $masksGeneratedPasswordsByDefault)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("似た文字の除外対象")
+                        .font(.system(size: 13, weight: .semibold))
+
+                    HStack(spacing: 18) {
+                        similarCharacterExclusionGroup(["O", "o", "0"])
+                        similarCharacterExclusionGroup(["I", "l", "1"])
+                    }
+                }
+
+                Text("自動削除は、コピー後に別の内容へ置き換えられていない場合だけ実行します。")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -74,6 +107,18 @@ private struct SettingsView: View {
         }
         .onChange(of: selectedDisplayTheme) { _, newValue in
             AppPreferences.shared.displayTheme = newValue
+        }
+        .onChange(of: isClipboardAutoClearEnabled) { _, newValue in
+            AppPreferences.shared.isClipboardAutoClearEnabled = newValue
+        }
+        .onChange(of: clipboardAutoClearSeconds) { _, newValue in
+            AppPreferences.shared.clipboardAutoClearSeconds = newValue
+        }
+        .onChange(of: masksGeneratedPasswordsByDefault) { _, newValue in
+            AppPreferences.shared.masksGeneratedPasswordsByDefault = newValue
+        }
+        .onChange(of: similarCharacterExclusions) { _, newValue in
+            AppPreferences.shared.similarCharacterExclusions = nativeSimilarCharacterOptions.filter { newValue.contains($0) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .nativeDisplayThemeDidChange)) { notification in
             guard let theme = notification.object as? NativeTheme else {
@@ -123,5 +168,26 @@ private struct SettingsView: View {
         .buttonStyle(.plain)
         .help(theme.displayName)
         .accessibilityLabel("表示テーマ \(theme.displayName)")
+    }
+
+    private func similarCharacterExclusionGroup(_ characters: [String]) -> some View {
+        HStack(spacing: 8) {
+            ForEach(characters, id: \.self) { character in
+                Toggle(isOn: Binding(
+                    get: { similarCharacterExclusions.contains(character) },
+                    set: { isSelected in
+                        if isSelected {
+                            similarCharacterExclusions.insert(character)
+                        } else {
+                            similarCharacterExclusions.remove(character)
+                        }
+                    }
+                )) {
+                    Text(character)
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                }
+                .toggleStyle(.checkbox)
+            }
+        }
     }
 }
