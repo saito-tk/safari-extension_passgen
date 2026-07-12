@@ -16,7 +16,10 @@ class ViewController: NSViewController {
     // NativeSwiftLayoutMetrics のカラム最小幅 (サイドバー244 + 中央520 + 右360 + 余白) から導出した下限
     private let sidebarVisibleMinWindowSize = NSSize(width: 1240, height: 760)
     private let sidebarHiddenMinWindowSize = NSSize(width: 980, height: 720)
+    // サイドバー幅 (~244) + カラム間スペース (16)。表示切り替え時のウィンドウ幅の増減量
+    private let sidebarWidthDelta: CGFloat = 260
     private let windowFrameAutosaveName = "PassgenMainWindow"
+    private var lastObservedSidebarVisibility: Bool?
     private var sidebarVisibilityObserver: AnyCancellable?
     private weak var sidebarToggleButton: NSButton?
     private var sidebarAccessoryController: NSTitlebarAccessoryViewController?
@@ -59,8 +62,34 @@ class ViewController: NSViewController {
             .receive(on: RunLoop.main)
             .sink { [weak self] isVisible in
                 self?.updateSidebarToggleButton(isVisible: isVisible)
+                self?.adjustWindowWidthForSidebarChange(isSidebarVisible: isVisible)
                 self?.updateWindowMinSize(isSidebarVisible: isVisible)
             }
+    }
+
+    // サイドバーの表示切り替えでは中央・右カラムの幅を維持し、ウィンドウ幅をサイドバー分だけ増減させる
+    private func adjustWindowWidthForSidebarChange(isSidebarVisible: Bool) {
+        defer {
+            lastObservedSidebarVisibility = isSidebarVisible
+        }
+
+        guard let window = configuredWindow,
+              let previousVisibility = lastObservedSidebarVisibility,
+              previousVisibility != isSidebarVisible else {
+            return
+        }
+
+        var frame = window.frame
+        frame.size.width += isSidebarVisible ? sidebarWidthDelta : -sidebarWidthDelta
+
+        if let screenFrame = window.screen?.visibleFrame {
+            frame.size.width = min(frame.size.width, screenFrame.width)
+            if frame.maxX > screenFrame.maxX {
+                frame.origin.x = screenFrame.maxX - frame.size.width
+            }
+        }
+
+        window.setFrame(frame, display: true, animate: true)
     }
 
     private func configureWindow(_ window: NSWindow) {

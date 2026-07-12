@@ -159,8 +159,10 @@ struct NativePasswordGeneratorView: View {
             VStack(alignment: .leading, spacing: 14) {
                 savedSettingsCard(palette: palette)
             }
+            .padding(.bottom, 4)
         }
         .scrollIndicators(.visible)
+        .nativeScrollBottomFade()
     }
 
     private func centerColumn(palette: NativeThemePalette) -> some View {
@@ -170,8 +172,10 @@ struct NativePasswordGeneratorView: View {
                 settingsCard(palette: palette)
                 rulesCard(palette: palette)
             }
+            .padding(.bottom, 4)
         }
         .scrollIndicators(.visible)
+        .nativeScrollBottomFade()
     }
 
     private func rightColumn(palette: NativeThemePalette) -> some View {
@@ -1065,9 +1069,10 @@ struct NativePasswordGeneratorView: View {
                         }
                     }
 
-                    Text("コピーボタンでクリップボードへ保存(90秒後に自動クリア)")
+                    Text("コピーは 90 秒後に自動クリア")
                         .font(.system(size: 12))
                         .foregroundStyle(palette.muted)
+                        .lineLimit(1)
                 }
 
                 Spacer(minLength: 0)
@@ -1170,12 +1175,12 @@ struct NativePasswordGeneratorView: View {
     }
 
     private func resultMetadataSummary(_ metadata: NativePasswordResultMetadata, generationHash: String?, palette: NativeThemePalette) -> some View {
-        HStack(spacing: 6) {
+        // 幅が足りない場合はチップを折り返し、カードからのはみ出しを防ぐ
+        NativeChipFlowLayout(spacing: 6) {
             resultMetadataChip("推定エントロピー: \(formatNumber(metadata.entropy)) bits", palette: palette)
                 .help("固定文字を除いた生成条件全体で共通の推定エントロピー")
             resultMetadataChip(metadata.conditionSummary, palette: palette)
                 .help("生成に使える文字セット数と文字カテゴリ数")
-            Spacer(minLength: 0)
             if let generationHash {
                 resultMetadataChip("ハッシュ: \(generationHash)", palette: palette)
                     .help("この生成結果セットを識別する短縮ハッシュ。テキスト出力ファイル名にも使われます。")
@@ -1646,6 +1651,56 @@ private struct NativePresetExportSelectionSheet: View {
         .padding(18)
         .frame(width: 460, height: 520)
         .background(palette.surfaceSoft)
+    }
+}
+
+private struct NativeChipFlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let containerWidth = proposal.width ?? .infinity
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalWidth: CGFloat = 0
+        var totalHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+
+            if rowWidth > 0 && rowWidth + spacing + size.width > containerWidth {
+                totalWidth = max(totalWidth, rowWidth)
+                totalHeight += (totalHeight > 0 ? spacing : 0) + rowHeight
+                rowWidth = size.width
+                rowHeight = size.height
+            } else {
+                rowWidth += (rowWidth > 0 ? spacing : 0) + size.width
+                rowHeight = max(rowHeight, size.height)
+            }
+        }
+
+        totalWidth = max(totalWidth, rowWidth)
+        totalHeight += (totalHeight > 0 ? spacing : 0) + rowHeight
+        return CGSize(width: min(totalWidth, containerWidth), height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+
+            if x > bounds.minX && x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+
+            subview.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
 
@@ -6363,6 +6418,17 @@ private func normalizeFullWidthDigits(_ value: String) -> String {
 }
 
 private extension View {
+    // スクロール下端でカードが唐突に切れて見えないよう、境界をフェードさせる
+    func nativeScrollBottomFade() -> some View {
+        mask(
+            VStack(spacing: 0) {
+                Rectangle()
+                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 14)
+            }
+        )
+    }
+
     func nativeCardStyle(palette: NativeThemePalette) -> some View {
         self
             .background(
