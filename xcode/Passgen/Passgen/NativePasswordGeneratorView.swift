@@ -55,6 +55,9 @@ private let nativeMaxPasswordCount = 1000
 private let nativeMaxGeneratedCharacters = nativeMaxPasswordLength * 10
 private let nativePasswordYieldInterval = 2_048
 private let nativeMaxConsecutiveRunLimit = 99
+private let nativeClipboardAutoClearNanoseconds: UInt64 = 90_000_000_000
+private let nativeDetailedAnalysisMaxLength = 10_000
+private let nativeUniformCompositionMaxAttempts = 64
 nonisolated private let uppercaseCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 nonisolated private let lowercaseCharacters = "abcdefghijklmnopqrstuvwxyz"
 nonisolated private let digitCharacters = "0123456789"
@@ -70,6 +73,8 @@ struct NativePasswordGeneratorView: View {
     @State private var isRulesHelpPresented = false
     @State private var isStrengthHelpPresented = false
     @State private var isPresetExportSheetPresented = false
+    @State private var draggingPresetID: String?
+    @State private var presetDropInsertionIndex: Int?
 
     init(viewModel: NativePasswordGeneratorViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -267,13 +272,13 @@ struct NativePasswordGeneratorView: View {
                     Spacer(minLength: 0)
 
                     Menu {
-                        ForEach(NativePresetSortKey.allCases) { sortKey in
+                        ForEach(viewModel.availablePresetSortKeys) { sortKey in
                             Button(sortKey.title) {
                                 viewModel.selectPresetSortKey(sortKey)
                             }
                         }
                     } label: {
-                        Text(viewModel.presetSortKey.title)
+                        Text(viewModel.visiblePresetSortKey.title)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(viewModel.isGenerating ? palette.disabledText : palette.accentStrong)
                             .padding(.horizontal, 8)
@@ -350,8 +355,22 @@ struct NativePasswordGeneratorView: View {
                             .stroke(palette.panelBorder, lineWidth: 1)
                     )
                 } else {
-                    ForEach(viewModel.sortedPresets) { preset in
+                    let sortedPresets = viewModel.sortedPresets
+                    let sortedPresetIDs = sortedPresets.map(\.id)
+                    ForEach(Array(sortedPresets.enumerated()), id: \.element.id) { index, preset in
                         let isSelected = viewModel.selectedPresetID == preset.id
+
+                        presetDropIndicator(insertionIndex: index, palette: palette)
+                            .nativePresetManualInsertionDropTarget(
+                                isEnabled: viewModel.canManuallyReorderPresets,
+                                insertionIndex: index,
+                                displayedPresetIDs: sortedPresetIDs,
+                                draggingPresetID: $draggingPresetID,
+                                dropInsertionIndex: $presetDropInsertionIndex,
+                                onDropPreset: { draggedID, insertionIndex in
+                                    viewModel.movePreset(id: draggedID, toDisplayedInsertionIndex: insertionIndex)
+                                }
+                            )
 
                         HStack(spacing: 0) {
                             Button {
@@ -435,7 +454,31 @@ struct NativePasswordGeneratorView: View {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .stroke(isSelected ? palette.accent.opacity(0.68) : palette.panelBorder, lineWidth: isSelected ? 2 : 1)
                         )
+                        .opacity(draggingPresetID == preset.id ? 0.48 : 1)
+                        .nativePresetManualDragDrop(
+                            isEnabled: viewModel.canManuallyReorderPresets,
+                            presetID: preset.id,
+                            rowIndex: index,
+                            displayedPresetIDs: sortedPresetIDs,
+                            draggingPresetID: $draggingPresetID,
+                            dropInsertionIndex: $presetDropInsertionIndex,
+                            onDropPreset: { draggedID, insertionIndex in
+                                viewModel.movePreset(id: draggedID, toDisplayedInsertionIndex: insertionIndex)
+                            }
+                        )
                     }
+
+                    presetDropIndicator(insertionIndex: sortedPresets.count, palette: palette)
+                        .nativePresetManualInsertionDropTarget(
+                            isEnabled: viewModel.canManuallyReorderPresets,
+                            insertionIndex: sortedPresets.count,
+                            displayedPresetIDs: sortedPresetIDs,
+                            draggingPresetID: $draggingPresetID,
+                            dropInsertionIndex: $presetDropInsertionIndex,
+                            onDropPreset: { draggedID, insertionIndex in
+                                viewModel.movePreset(id: draggedID, toDisplayedInsertionIndex: insertionIndex)
+                            }
+                        )
                 }
             }
         }
@@ -446,9 +489,18 @@ struct NativePasswordGeneratorView: View {
     private func heroCard(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
-                Text(viewModel.currentSettingsTitle)
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(palette.ink)
+                HStack(spacing: 8) {
+                    if viewModel.isSelectedPresetLocked {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(palette.accentStrong)
+                            .help("ロック中")
+                    }
+
+                    Text(viewModel.currentSettingsTitle)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(palette.ink)
+                }
 
                 Spacer(minLength: 0)
 
@@ -505,9 +557,10 @@ struct NativePasswordGeneratorView: View {
                 characterEditorHelpPopover(palette: palette)
             }
 
-            characterTabBar(palette: palette)
-            activeCharacterPanel(palette: palette)
-
+            if !viewModel.isSelectedPresetLocked {
+                characterTabBar(palette: palette)
+                activeCharacterPanel(palette: palette)
+            }
             selectedCharactersSummary(palette: palette)
         }
         .padding(16)
@@ -793,6 +846,17 @@ struct NativePasswordGeneratorView: View {
         }
     }
 
+    private func presetDropIndicator(insertionIndex: Int, palette: NativeThemePalette) -> some View {
+        let isActive = draggingPresetID != nil && presetDropInsertionIndex == insertionIndex
+        let isDragging = draggingPresetID != nil
+
+        return RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(isActive ? palette.accentStrong : Color.clear)
+            .frame(height: isActive ? 4 : (isDragging ? 12 : 0))
+            .padding(.horizontal, 12)
+            .animation(.easeOut(duration: 0.12), value: isActive)
+    }
+
     private func rulesCard(palette: NativeThemePalette) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             sectionHeaderWithHelp(
@@ -1001,12 +1065,43 @@ struct NativePasswordGeneratorView: View {
                         }
                     }
 
-                    Text("コピーボタンでクリップボードへ保存")
+                    Text("コピーボタンでクリップボードへ保存(90秒後に自動クリア)")
                         .font(.system(size: 12))
                         .foregroundStyle(palette.muted)
                 }
 
                 Spacer(minLength: 0)
+
+                Button {
+                    viewModel.toggleResultMask()
+                } label: {
+                    Image(systemName: viewModel.isResultMaskEnabled ? "eye.slash" : "eye")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(palette.accentStrong)
+                        .frame(width: 30, height: 30)
+                        .background(
+                            Circle()
+                                .fill(palette.accentSoft)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(viewModel.isResultMaskEnabled ? "パスワードを表示" : "パスワードを隠す")
+
+                Button {
+                    viewModel.clearResults()
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(viewModel.canClearResults ? palette.accentStrong : palette.disabledText)
+                        .frame(width: 30, height: 30)
+                        .background(
+                            Circle()
+                                .fill(viewModel.canClearResults ? palette.accentSoft : palette.disabledBackground)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!viewModel.canClearResults)
+                .help("生成結果をクリア")
 
                 Button {
                     viewModel.exportResultsAsText()
@@ -1054,6 +1149,7 @@ struct NativePasswordGeneratorView: View {
                         ForEach(viewModel.results) { password in
                             NativePasswordRow(
                                 password: password,
+                                isMasked: viewModel.isResultMaskEnabled,
                                 isCopied: viewModel.copiedPasswordIDs.contains(password.id),
                                 characterCompositionHelpTextProvider: {
                                     viewModel.characterCompositionHelpText(for: password.id)
@@ -1581,6 +1677,8 @@ private struct NativeSwiftLayoutMetrics {
 
 @MainActor
 final class NativePasswordGeneratorViewModel: ObservableObject {
+    private static let isManualPresetOrderingEnabled = false
+
     @Published var settings: NativePasswordSettings
     private var isApplyingNumericCorrection = false
 
@@ -1616,16 +1714,22 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     @Published var progressTotal = 0
     @Published var isGenerating = false
     @Published var isCancellingGeneration = false
+    @Published var isResultMaskEnabled = false
     @Published var isSavedSettingsSidebarVisible = true
     @Published var presetNameText = ""
     @Published var presetStatus = NativeInlineStatus()
     @Published var presets: [NativePasswordPreset] = []
     @Published var selectedPresetID: String?
-    @Published var presetSortKey: NativePresetSortKey = .name
+    @Published var presetSortKey: NativePresetSortKey = .name {
+        didSet {
+            normalizeMaskedPresetSortKeyIfNeeded()
+        }
+    }
     @Published var presetSortDirection: NativePresetSortDirection = .ascending
     @Published var presetExportSelectionIDs: Set<String> = []
 
     private var generationTask: Task<Void, Never>?
+    private var clipboardClearTask: Task<Void, Never>?
     private var isRestoringSettings = true
     private var generatedPasswordStore: [UUID: String] = [:]
     private var currentGenerationSession: NativeGenerationSession?
@@ -1653,6 +1757,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         lengthText = String(restoredSettings.length)
         countText = String(restoredSettings.count)
         presets = Self.restorePresets()
+        normalizeMaskedPresetSortKeyIfNeeded()
         syncCategorySelectionFlags()
         syncSelectAllState()
         isRestoringSettings = false
@@ -1660,6 +1765,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
     deinit {
         generationTask?.cancel()
+        clipboardClearTask?.cancel()
     }
 
     func palette(for colorScheme: ColorScheme) -> NativeThemePalette {
@@ -1772,11 +1878,38 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         return currentGenerationSession.shortHash
     }
 
+    var availablePresetSortKeys: [NativePresetSortKey] {
+        NativePresetSortKey.allCases.filter { sortKey in
+            Self.isManualPresetOrderingEnabled || sortKey != .manual
+        }
+    }
+
+    var visiblePresetSortKey: NativePresetSortKey {
+        effectivePresetSortKey
+    }
+
+    var canManuallyReorderPresets: Bool {
+        Self.isManualPresetOrderingEnabled && !isGenerating && presetSortKey == .manual
+    }
+
     var sortedPresets: [NativePasswordPreset] {
-        presets.sorted { firstPreset, secondPreset in
+        let sortKey = effectivePresetSortKey
+
+        if sortKey == .manual {
+            switch presetSortDirection {
+            case .ascending:
+                return presets
+            case .descending:
+                return Array(presets.reversed())
+            }
+        }
+
+        return presets.sorted { firstPreset, secondPreset in
             let comparison: ComparisonResult
 
-            switch presetSortKey {
+            switch sortKey {
+            case .manual:
+                comparison = .orderedSame
             case .name:
                 comparison = Self.comparePresetNames(firstPreset, secondPreset)
             case .createdAt:
@@ -1804,16 +1937,63 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         return presets.first { $0.id == selectedPresetID }
     }
 
+    private var effectivePresetSortKey: NativePresetSortKey {
+        if !Self.isManualPresetOrderingEnabled && presetSortKey == .manual {
+            return .name
+        }
+
+        return presetSortKey
+    }
+
     func toggleSavedSettingsSidebar() {
         isSavedSettingsSidebarVisible.toggle()
     }
 
     func selectPresetSortKey(_ sortKey: NativePresetSortKey) {
+        guard Self.isManualPresetOrderingEnabled || sortKey != .manual else {
+            normalizeMaskedPresetSortKeyIfNeeded()
+            return
+        }
+
         presetSortKey = sortKey
+    }
+
+    private func normalizeMaskedPresetSortKeyIfNeeded() {
+        if !Self.isManualPresetOrderingEnabled && presetSortKey == .manual {
+            presetSortKey = .name
+        }
     }
 
     func togglePresetSortDirection() {
         presetSortDirection = presetSortDirection == .ascending ? .descending : .ascending
+    }
+
+    func movePreset(id: String, toDisplayedInsertionIndex insertionIndex: Int) {
+        guard canManuallyReorderPresets else {
+            return
+        }
+
+        var displayedIDs = sortedPresets.map(\.id)
+        guard let sourceDisplayIndex = displayedIDs.firstIndex(of: id) else {
+            return
+        }
+
+        displayedIDs.remove(at: sourceDisplayIndex)
+        let adjustedInsertionIndex = insertionIndex > sourceDisplayIndex ? insertionIndex - 1 : insertionIndex
+        let destinationIndex = min(max(adjustedInsertionIndex, 0), displayedIDs.count)
+        displayedIDs.insert(id, at: destinationIndex)
+
+        let savedOrderIDs: [String]
+        switch presetSortDirection {
+        case .ascending:
+            savedOrderIDs = displayedIDs
+        case .descending:
+            savedOrderIDs = Array(displayedIDs.reversed())
+        }
+
+        let presetsByID = Dictionary(uniqueKeysWithValues: presets.map { ($0.id, $0) })
+        presets = savedOrderIDs.compactMap { presetsByID[$0] }
+        persistPresets()
     }
 
     func preparePresetExportSelection() {
@@ -1953,7 +2133,9 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
     }
 
     func presetMetadataText(for preset: NativePasswordPreset) -> String? {
-        switch presetSortKey {
+        switch effectivePresetSortKey {
+        case .manual:
+            return nil
         case .name:
             return nil
         case .createdAt:
@@ -2356,8 +2538,47 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             return
         }
 
-        copyToPasteboard(value)
+        let changeCount = copyToPasteboard(value)
         copiedPasswordIDs.insert(id)
+        scheduleClipboardAutoClear(afterChangeCount: changeCount)
+    }
+
+    private func scheduleClipboardAutoClear(afterChangeCount changeCount: Int) {
+        clipboardClearTask?.cancel()
+        clipboardClearTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: nativeClipboardAutoClearNanoseconds)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            let pasteboard = NSPasteboard.general
+            // ユーザーがその後に別の内容をコピーしていたら消さない
+            if pasteboard.changeCount == changeCount {
+                pasteboard.clearContents()
+            }
+        }
+    }
+
+    var canClearResults: Bool {
+        !results.isEmpty && !isGenerating
+    }
+
+    func toggleResultMask() {
+        isResultMaskEnabled.toggle()
+    }
+
+    func clearResults() {
+        guard canClearResults else {
+            return
+        }
+
+        results = []
+        generatedPasswordStore = [:]
+        copiedPasswordIDs = []
+        currentGenerationSession = nil
+        progressCompleted = 0
+        progressTotal = 0
+        resultStatus = NativeInlineStatus(message: "生成結果をクリアしました。")
     }
 
     func characterCompositionHelpText(for id: UUID) -> String {
@@ -2384,7 +2605,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         savePanel.isExtensionHidden = false
         savePanel.nameFieldStringValue = defaultTextExportFilename()
         savePanel.title = "生成結果を書き出す"
-        savePanel.message = "生成したすべてのパスワードをテキストファイルとして保存します。"
+        savePanel.message = "生成したすべてのパスワードを暗号化されない平文のテキストファイルとして保存します。保存先の管理に注意してください。"
 
         let response = savePanel.runModal()
         guard response == .OK, let url = savePanel.url else {
@@ -2393,7 +2614,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
 
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
-            resultStatus = NativeInlineStatus(message: "生成したすべてのパスワードをテキスト出力しました。")
+            resultStatus = NativeInlineStatus(message: "生成したすべてのパスワードをテキスト出力しました。ファイルは平文のため取り扱いに注意してください。", tone: .warning)
         } catch {
             resultStatus = NativeInlineStatus(message: "テキスト出力に失敗しました。保存先を確認してください。", tone: .error)
         }
@@ -3113,17 +3334,193 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
         let usesFirstCharacterRestriction = settings.firstCharacterMode == .characterSet
         let usesConsecutiveLimit = settings.maxConsecutiveRun > 0
         let prefixCharacters = settings.firstCharacterMode == .fixedPrefix ? settings.fixedPrefix.map(String.init) : []
-        let targetCountMap = requiresEachSelectedType
-            ? buildRequiredPoolCountMap(pools: pools)
-            : nil
         let resolvedAllowedFirstPoolIDs = usesFirstCharacterRestriction
             ? Self.allowedFirstPoolIDs(using: settings).intersection(Set(pools.map(\.id)))
             : Set<String>()
         let maximumConsecutiveRun = settings.maxConsecutiveRun
+
+        var requiredPools: [NativeCharacterPool] = []
+        if requiresEachSelectedType {
+            let coveredPoolIDs = Set(prefixCharacters.compactMap { Self.poolID(for: $0, in: pools) })
+            requiredPools = pools.filter { !coveredPoolIDs.contains($0.id) }
+        }
+
+        let entropy = estimateRulePriorityEntropy(
+            settings: settings,
+            pools: pools,
+            allCharacters: allCharacters,
+            prefixLength: prefixCharacters.count,
+            allowedFirstPoolIDs: resolvedAllowedFirstPoolIDs
+        )
+
+        // 一様構成 (必須文字を確保 → 残りを全文字セットから一様に充填 → CSPRNG でシャッフル) を優先する。
+        // 制約 (同一文字の最大連続数) が厳しく棄却が続く見込みの設定では、必ず停止する逐次生成へ切り替える。
+        if shouldAttemptUniformComposition(length: settings.length, charsetSize: allCharacters.count, maximumConsecutiveRun: maximumConsecutiveRun) {
+            for _ in 0..<nativeUniformCompositionMaxAttempts {
+                try Task.checkCancellation()
+
+                if let password = try await composeUniformCandidate(
+                    pools: pools,
+                    allCharacters: allCharacters,
+                    requiredPools: requiredPools,
+                    prefixCharacters: prefixCharacters,
+                    length: settings.length,
+                    allowedFirstPoolIDs: resolvedAllowedFirstPoolIDs,
+                    restrictFirstCharacter: usesFirstCharacterRestriction && prefixCharacters.isEmpty,
+                    maximumConsecutiveRun: maximumConsecutiveRun
+                ) {
+                    return NativeGeneratedPassword(
+                        value: password,
+                        entropy: entropy,
+                        charsetSize: allCharacters.count,
+                        categoryCount: pools.count
+                    )
+                }
+            }
+        }
+
+        let password = try await createSequentialPassword(
+            using: settings,
+            pools: pools,
+            prefixCharacters: prefixCharacters,
+            allowedFirstPoolIDs: resolvedAllowedFirstPoolIDs,
+            restrictFirstCharacter: usesFirstCharacterRestriction,
+            restrictConsecutiveDuplicates: usesConsecutiveLimit,
+            maximumConsecutiveRun: maximumConsecutiveRun
+        )
+
+        return NativeGeneratedPassword(
+            value: password,
+            entropy: entropy,
+            charsetSize: allCharacters.count,
+            categoryCount: pools.count
+        )
+    }
+
+    private static func shouldAttemptUniformComposition(length: Int, charsetSize: Int, maximumConsecutiveRun: Int) -> Bool {
+        guard maximumConsecutiveRun > 0 else {
+            return true
+        }
+
+        guard charsetSize > 1 else {
+            return false
+        }
+
+        // 一様生成した文字列が連続数制約に違反する箇所の期待値。1 を超える設定では棄却がほぼ確実に続くため逐次生成を使う
+        let expectedViolations = Double(length) / pow(Double(charsetSize), Double(maximumConsecutiveRun))
+        return expectedViolations <= 1
+    }
+
+    private static func composeUniformCandidate(
+        pools: [NativeCharacterPool],
+        allCharacters: [String],
+        requiredPools: [NativeCharacterPool],
+        prefixCharacters: [String],
+        length: Int,
+        allowedFirstPoolIDs: Set<String>,
+        restrictFirstCharacter: Bool,
+        maximumConsecutiveRun: Int
+    ) async throws -> String? {
+        let bodyLength = length - prefixCharacters.count
+        guard bodyLength >= requiredPools.count else {
+            throw NativeGenerationError.unavailableCharacters
+        }
+
+        var bodyCharacters: [String] = []
+        bodyCharacters.reserveCapacity(bodyLength)
+
+        for pool in requiredPools {
+            bodyCharacters.append(pool.characters[try randomInt(upperBound: pool.characters.count)])
+        }
+
+        var iterationsSinceYield = 0
+        while bodyCharacters.count < bodyLength {
+            bodyCharacters.append(allCharacters[try randomInt(upperBound: allCharacters.count)])
+            iterationsSinceYield += 1
+
+            if iterationsSinceYield >= nativePasswordYieldInterval {
+                iterationsSinceYield = 0
+                try Task.checkCancellation()
+                await Task.yield()
+            }
+        }
+
+        // CSPRNG による Fisher–Yates。必須文字の位置バイアスをなくす
+        if bodyCharacters.count > 1 {
+            iterationsSinceYield = 0
+            for index in stride(from: bodyCharacters.count - 1, through: 1, by: -1) {
+                let swapIndex = try randomInt(upperBound: index + 1)
+                bodyCharacters.swapAt(index, swapIndex)
+                iterationsSinceYield += 1
+
+                if iterationsSinceYield >= nativePasswordYieldInterval {
+                    iterationsSinceYield = 0
+                    try Task.checkCancellation()
+                    await Task.yield()
+                }
+            }
+        }
+
+        if restrictFirstCharacter, let firstCharacter = bodyCharacters.first {
+            let allowedFirstCharacters = Set(combinePools(pools.filter { allowedFirstPoolIDs.contains($0.id) }))
+            if !allowedFirstCharacters.contains(firstCharacter) {
+                let allowedIndices = bodyCharacters.indices.filter { allowedFirstCharacters.contains(bodyCharacters[$0]) }
+                guard !allowedIndices.isEmpty else {
+                    return nil
+                }
+
+                let swapIndex = allowedIndices[try randomInt(upperBound: allowedIndices.count)]
+                bodyCharacters.swapAt(0, swapIndex)
+            }
+        }
+
+        let candidateCharacters = prefixCharacters + bodyCharacters
+        if maximumConsecutiveRun > 0 && !satisfiesConsecutiveRunLimit(candidateCharacters, maximumConsecutiveRun: maximumConsecutiveRun) {
+            return nil
+        }
+
+        return candidateCharacters.joined()
+    }
+
+    private static func satisfiesConsecutiveRunLimit(_ characters: [String], maximumConsecutiveRun: Int) -> Bool {
+        var runLength = 0
+        var previousCharacter = ""
+
+        for character in characters {
+            if character == previousCharacter {
+                runLength += 1
+            } else {
+                previousCharacter = character
+                runLength = 1
+            }
+
+            if runLength > maximumConsecutiveRun {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    // 制約が厳しい設定向けのフォールバック。位置を順に埋めるため必ず停止するが、
+    // 制約由来のわずかな分布の偏りは残る (文字単位の抽選は候補プールの合併から一様に行う)
+    private static func createSequentialPassword(
+        using settings: NativePasswordSettings,
+        pools: [NativeCharacterPool],
+        prefixCharacters: [String],
+        allowedFirstPoolIDs: Set<String>,
+        restrictFirstCharacter: Bool,
+        restrictConsecutiveDuplicates: Bool,
+        maximumConsecutiveRun: Int
+    ) async throws -> String {
+        let requiresEachSelectedType = settings.requireEachSelectedType
+        let targetCountMap = requiresEachSelectedType
+            ? buildRequiredPoolCountMap(pools: pools)
+            : nil
         var currentCountMap = requiresEachSelectedType ? Dictionary(uniqueKeysWithValues: pools.map { ($0.id, 0) }) : [:]
         var passwordCharacters: [String] = prefixCharacters
         var previousCharacter = prefixCharacters.last ?? ""
-        var consecutiveCount = usesConsecutiveLimit ? Self.longestTrailingRun(in: prefixCharacters) : 0
+        var consecutiveCount = restrictConsecutiveDuplicates ? Self.longestTrailingRun(in: prefixCharacters) : 0
         var iterationsSinceYield = 0
 
         if requiresEachSelectedType {
@@ -3146,17 +3543,17 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
                 maximumConsecutiveRun: maximumConsecutiveRun,
                 previousCharacter: previousCharacter,
                 consecutiveCount: consecutiveCount,
-                allowedFirstPoolIDs: resolvedAllowedFirstPoolIDs,
+                allowedFirstPoolIDs: allowedFirstPoolIDs,
                 isFirstCharacter: passwordCharacters.count == prefixCharacters.count && prefixCharacters.isEmpty,
-                restrictFirstCharacter: usesFirstCharacterRestriction,
-                restrictConsecutiveDuplicates: usesConsecutiveLimit
+                restrictFirstCharacter: restrictFirstCharacter,
+                restrictConsecutiveDuplicates: restrictConsecutiveDuplicates
             )
 
-            let selectedPoolIndex = try randomInt(upperBound: candidatePools.count)
-            let pool = candidatePools[selectedPoolIndex]
+            // プール単位でなく候補文字の合併から一様に選び、プールサイズ差による偏りをなくす
+            let unionCharacters = candidatePools.flatMap(\.characters)
 
             guard let character = try pickCharacter(
-                from: pool.characters,
+                from: unionCharacters,
                 previousCharacter: previousCharacter,
                 consecutiveCount: consecutiveCount,
                 maximumConsecutiveRun: maximumConsecutiveRun
@@ -3165,11 +3562,11 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             }
 
             passwordCharacters.append(character)
-            if requiresEachSelectedType {
-                currentCountMap[pool.id, default: 0] += 1
+            if requiresEachSelectedType, let poolID = Self.poolID(for: character, in: pools) {
+                currentCountMap[poolID, default: 0] += 1
             }
 
-            if usesConsecutiveLimit {
+            if restrictConsecutiveDuplicates {
                 if character == previousCharacter {
                     consecutiveCount += 1
                 } else {
@@ -3186,19 +3583,7 @@ final class NativePasswordGeneratorViewModel: ObservableObject {
             }
         }
 
-        let password = passwordCharacters.joined()
-        return NativeGeneratedPassword(
-            value: password,
-            entropy: estimateRulePriorityEntropy(
-                settings: settings,
-                pools: pools,
-                allCharacters: allCharacters,
-                prefixLength: prefixCharacters.count,
-                allowedFirstPoolIDs: resolvedAllowedFirstPoolIDs
-            ),
-            charsetSize: allCharacters.count,
-            categoryCount: pools.count
-        )
+        return passwordCharacters.joined()
     }
 
     private static func createUniformPassword(from characters: [String], length: Int, categoryCount: Int) async throws -> NativeGeneratedPassword {
@@ -4139,10 +4524,14 @@ struct NativePasswordAnalysis {
     let warnings: [String]
 
     nonisolated init(password: String, entropy: Double, charsetSize: Int, categoryCount: Int) {
-        let patternFindings = getPasswordPatternFindings(password)
+        // 超長パスワードは第一級ユースケース。生成は制限せず、コストの高い詳細解析だけ省略する
+        let skipsDetailedAnalysis = password.count > nativeDetailedAnalysisMaxLength
+        let patternFindings = skipsDetailedAnalysis ? [] : getPasswordPatternFindings(password)
         let lengthGrade = getLengthGrade(length: password.count)
         let bruteForceGrade = getEntropyGrade(entropy)
-        let knownRiskSignal = getKnownRiskSignal(password: password)
+        let knownRiskSignal = skipsDetailedAnalysis
+            ? NativePasswordRiskSignal(level: .none, message: nil)
+            : getKnownRiskSignal(password: password)
         let patternRiskSignal = getPatternRiskSignal(patternFindings: patternFindings)
         let overallGrade = getOverallPasswordGrade(
             lengthGrade: lengthGrade,
@@ -4160,13 +4549,17 @@ struct NativePasswordAnalysis {
             NativePasswordGradeMetric(id: "bruteForce", title: "総当たり耐性", compactTitle: "総当たり耐性", grade: bruteForceGrade)
         ]
         self.conditionSummary = "条件 \(formatNumber(charsetSize))字/\(formatNumber(categoryCount))種"
-        self.warnings = getPasswordAnalysisMessages(
+        var warnings = getPasswordAnalysisMessages(
             lengthGrade: lengthGrade,
             bruteForceGrade: bruteForceGrade,
             charsetSize: charsetSize,
             knownRiskSignal: knownRiskSignal,
             patternRiskSignal: patternRiskSignal
         )
+        if skipsDetailedAnalysis {
+            warnings.append("長大な結果のため、既知リスクとパターンの詳細解析は省略しました。")
+        }
+        self.warnings = warnings
     }
 
     var warningDetail: String {
@@ -4176,6 +4569,7 @@ struct NativePasswordAnalysis {
 
 private struct NativePasswordRow: View {
     let password: NativeGeneratedPasswordListItem
+    let isMasked: Bool
     let isCopied: Bool
     let characterCompositionHelpTextProvider: () -> String
     let palette: NativeThemePalette
@@ -4187,7 +4581,10 @@ private struct NativePasswordRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
-                NativePasswordPreviewLabel(text: password.displayValue, textColor: NSColor(palette.ink))
+                NativePasswordPreviewLabel(
+                    text: isMasked ? String(repeating: "•", count: min(password.displayValue.count, 40)) : password.displayValue,
+                    textColor: NSColor(palette.ink)
+                )
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .help(resolvedCharacterCompositionHelpText)
 
@@ -4384,6 +4781,175 @@ private struct NativePasswordRow: View {
     }
 }
 
+private struct NativePresetDropDelegate: DropDelegate {
+    enum Target {
+        case fixedInsertion(Int)
+        case row(rowIndex: Int, rowHeight: CGFloat)
+    }
+
+    let target: Target
+    let displayedPresetIDs: [String]
+    @Binding var draggingPresetID: String?
+    @Binding var dropInsertionIndex: Int?
+    let canDrop: Bool
+    let onDropPreset: (String, Int) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        canDrop && draggingPresetID != nil
+    }
+
+    func dropEntered(info: DropInfo) {
+        dropInsertionIndex = resolvedInsertionIndex(info: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        guard canDrop else {
+            return DropProposal(operation: .forbidden)
+        }
+
+        dropInsertionIndex = resolvedInsertionIndex(info: info)
+
+        return DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            draggingPresetID = nil
+            dropInsertionIndex = nil
+        }
+
+        guard canDrop, let draggingPresetID, let insertionIndex = resolvedInsertionIndex(info: info) else {
+            return true
+        }
+
+        onDropPreset(draggingPresetID, insertionIndex)
+        return true
+    }
+
+    private func resolvedInsertionIndex(info: DropInfo) -> Int? {
+        guard canDrop,
+              let draggingPresetID,
+              let sourceIndex = displayedPresetIDs.firstIndex(of: draggingPresetID) else {
+            return nil
+        }
+
+        let insertionIndex: Int
+        switch target {
+        case .fixedInsertion(let fixedInsertionIndex):
+            insertionIndex = fixedInsertionIndex
+        case .row(let rowIndex, let rowHeight):
+            let isLowerHalf = info.location.y >= rowHeight / 2
+            insertionIndex = isLowerHalf ? rowIndex + 1 : rowIndex
+        }
+
+        let destinationIndexAfterRemoval = insertionIndex > sourceIndex ? insertionIndex - 1 : insertionIndex
+        guard destinationIndexAfterRemoval != sourceIndex else {
+            return nil
+        }
+
+        return min(max(insertionIndex, 0), displayedPresetIDs.count)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func nativePresetManualDragDrop(
+        isEnabled: Bool,
+        presetID: String,
+        rowIndex: Int,
+        displayedPresetIDs: [String],
+        draggingPresetID: Binding<String?>,
+        dropInsertionIndex: Binding<Int?>,
+        onDropPreset: @escaping (String, Int) -> Void
+    ) -> some View {
+        modifier(
+            NativePresetManualDragDropModifier(
+                isEnabled: isEnabled,
+                presetID: presetID,
+                rowIndex: rowIndex,
+                displayedPresetIDs: displayedPresetIDs,
+                draggingPresetID: draggingPresetID,
+                dropInsertionIndex: dropInsertionIndex,
+                onDropPreset: onDropPreset
+            )
+        )
+    }
+
+    @ViewBuilder
+    func nativePresetManualInsertionDropTarget(
+        isEnabled: Bool,
+        insertionIndex: Int,
+        displayedPresetIDs: [String],
+        draggingPresetID: Binding<String?>,
+        dropInsertionIndex: Binding<Int?>,
+        onDropPreset: @escaping (String, Int) -> Void
+    ) -> some View {
+        if isEnabled {
+            self.onDrop(
+                of: [.text],
+                delegate: NativePresetDropDelegate(
+                    target: .fixedInsertion(insertionIndex),
+                    displayedPresetIDs: displayedPresetIDs,
+                    draggingPresetID: draggingPresetID,
+                    dropInsertionIndex: dropInsertionIndex,
+                    canDrop: isEnabled,
+                    onDropPreset: onDropPreset
+                )
+            )
+        } else {
+            self
+        }
+    }
+}
+
+private struct NativePresetManualDragDropModifier: ViewModifier {
+    let isEnabled: Bool
+    let presetID: String
+    let rowIndex: Int
+    let displayedPresetIDs: [String]
+    @Binding var draggingPresetID: String?
+    @Binding var dropInsertionIndex: Int?
+    let onDropPreset: (String, Int) -> Void
+
+    @State private var rowHeight: CGFloat = 1
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear
+                            .onAppear {
+                                rowHeight = proxy.size.height
+                            }
+                            .onChange(of: proxy.size.height) { _, newHeight in
+                                rowHeight = newHeight
+                            }
+                    }
+                }
+                .onDrag {
+                    draggingPresetID = presetID
+                    dropInsertionIndex = nil
+                    return NSItemProvider(object: presetID as NSString)
+                }
+                .onDrop(
+                    of: [.text],
+                    delegate: NativePresetDropDelegate(
+                        target: .row(rowIndex: rowIndex, rowHeight: rowHeight),
+                        displayedPresetIDs: displayedPresetIDs,
+                        draggingPresetID: $draggingPresetID,
+                        dropInsertionIndex: $dropInsertionIndex,
+                        canDrop: isEnabled,
+                        onDropPreset: onDropPreset
+                    )
+                )
+        } else {
+            content
+        }
+    }
+}
+
 private struct NativePasswordPreviewLabel: NSViewRepresentable {
     let text: String
     let textColor: NSColor
@@ -4574,6 +5140,7 @@ enum NativeFirstCharacterMode: String, CaseIterable, Codable, Identifiable {
 }
 
 enum NativePresetSortKey: String, CaseIterable, Identifiable {
+    case manual
     case name
     case createdAt
     case updatedAt
@@ -4582,6 +5149,8 @@ enum NativePresetSortKey: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .manual:
+            return "手動"
         case .name:
             return "名前"
         case .createdAt:
@@ -5733,10 +6302,17 @@ private nonisolated func estimateEntropy(charsetSize: Int, length: Int) -> Doubl
     return (Double(length) * log2(Double(charsetSize)) * 10).rounded() / 10
 }
 
-private func copyToPasteboard(_ text: String) {
+// クリップボード履歴アプリと Universal Clipboard にパスワードを残さないための業界慣行タイプ
+private let nativeConcealedPasteboardType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+
+@discardableResult
+private func copyToPasteboard(_ text: String) -> Int {
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
+    pasteboard.declareTypes([.string, nativeConcealedPasteboardType], owner: nil)
     pasteboard.setString(text, forType: .string)
+    pasteboard.setString("", forType: nativeConcealedPasteboardType)
+    return pasteboard.changeCount
 }
 
 private nonisolated func formatNumber<T: BinaryInteger>(_ value: T) -> String {

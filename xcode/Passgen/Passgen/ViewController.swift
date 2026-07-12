@@ -13,6 +13,10 @@ class ViewController: NSViewController {
     private let nativeViewModel = NativePasswordGeneratorViewModel()
     private lazy var nativeHostingView = NSHostingView(rootView: NativePasswordGeneratorView(viewModel: nativeViewModel))
     private let preferredWindowSize = NSSize(width: 1380, height: 840)
+    // NativeSwiftLayoutMetrics のカラム最小幅 (サイドバー244 + 中央520 + 右360 + 余白) から導出した下限
+    private let sidebarVisibleMinWindowSize = NSSize(width: 1240, height: 760)
+    private let sidebarHiddenMinWindowSize = NSSize(width: 980, height: 720)
+    private let windowFrameAutosaveName = "PassgenMainWindow"
     private var sidebarVisibilityObserver: AnyCancellable?
     private weak var sidebarToggleButton: NSButton?
     private var sidebarAccessoryController: NSTitlebarAccessoryViewController?
@@ -32,8 +36,6 @@ class ViewController: NSViewController {
         }
 
         configureWindow(window)
-        window.minSize = preferredWindowSize
-        window.setContentSize(preferredWindowSize)
     }
 
     private func configureNativeView() {
@@ -57,6 +59,7 @@ class ViewController: NSViewController {
             .receive(on: RunLoop.main)
             .sink { [weak self] isVisible in
                 self?.updateSidebarToggleButton(isVisible: isVisible)
+                self?.updateWindowMinSize(isSidebarVisible: isVisible)
             }
     }
 
@@ -69,6 +72,20 @@ class ViewController: NSViewController {
         window.toolbar = nil
         installSidebarAccessoryIfNeeded(on: window)
         updateSidebarToggleButton(isVisible: nativeViewModel.isSavedSettingsSidebarVisible)
+        updateWindowMinSize(isSidebarVisible: nativeViewModel.isSavedSettingsSidebarVisible)
+
+        if !window.setFrameUsingName(windowFrameAutosaveName) {
+            window.setContentSize(preferredWindowSize)
+        }
+        window.setFrameAutosaveName(windowFrameAutosaveName)
+    }
+
+    private func updateWindowMinSize(isSidebarVisible: Bool) {
+        guard let window = configuredWindow else {
+            return
+        }
+
+        window.minSize = isSidebarVisible ? sidebarVisibleMinWindowSize : sidebarHiddenMinWindowSize
     }
 
     @objc private func toggleSavedSettingsSidebar(_ sender: Any?) {
